@@ -4,6 +4,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import math
 import json
+import time
 
 
 def plot_graph(graph):
@@ -151,13 +152,16 @@ def calculate_coverage(graph, solution, coverage_radius):
     return len(covered)
 
 
-def local_search(graph, solution, coverage_radius, alpha):
+def local_search(graph, solution, coverage_radius, alpha, visited_neighbors):
     """Busca local: melhora a solução trocando vértices por seus vizinhos."""
+    # print("Entrou na busca local")
     improvement = True
     best_solution = solution[:]
     best_tour, best_distance = tsp_nearest_insertion(graph, best_solution)
     best_coverage = calculate_coverage(graph, best_solution, coverage_radius)
     best_objective = calculate_objective(alpha, best_distance, best_coverage)
+    if tuple(best_solution) in visited_neighbors:
+        improvement = False
 
     while improvement:
         improvement = False
@@ -175,12 +179,23 @@ def local_search(graph, solution, coverage_radius, alpha):
                     )
 
                     if new_objective < best_objective:
+                        # print(
+                        #     f"Achou melhor na busca local:",
+                        #     new_solution,
+                        #     new_tour,
+                        #     new_objective,
+                        #     "Solução de entrada:",
+                        #     solution,
+                        # )
                         best_solution = new_solution[:]
                         best_tour = new_tour[:]
                         best_distance = new_distance
                         best_coverage = new_coverage
                         best_objective = new_objective
+                        # print("Melhorou", best_objective)
                         improvement = True
+                    else:
+                        visited_neighbors.add(tuple(solution[:]))
     return best_solution, best_tour, best_distance, best_coverage, best_objective
 
 
@@ -191,7 +206,8 @@ def read_parameters_from_json(filename):
 
 
 def main():
-    num_vertices, edges = read_input_from_file("in2.txt")
+    num_vertices, edges = read_input_from_file("in.txt")
+    visited_neighbors = set()
 
     graph = nx.Graph()
     graph.add_nodes_from(range(num_vertices))
@@ -215,9 +231,13 @@ def main():
     print(
         f"Solução inicial: {best_solution}, Distância inicial: {best_distance}, Cobertura inicial: {best_coverage}, Objetivo inicial: {best_objective}"
     )
-
+    t0 = time.time()
     for iteration in range(1, max_iterations + 1):
+        if iteration == 100:
+            print(time.time() - t0)
+        print(f"Iteração {iteration}")
         k = k_min
+        last_best_objective = best_objective
         while k <= k_max:
             # print(
             #     f"Iteração {iteration}, k={k}, vértices={best_solution}, melhor objetivo={best_objective}"
@@ -244,7 +264,15 @@ def main():
             perturbed_objective = calculate_objective(
                 alpha, perturbed_distance, perturbed_coverage
             )
-
+            (
+                perturbed_solution,
+                perturbed_tour,
+                perturbed_distance,
+                perturbed_coverage,
+                perturbed_objective,
+            ) = local_search(
+                graph, perturbed_solution, coverage_radius, alpha, visited_neighbors
+            )
             if perturbed_objective < best_objective:
                 best_solution = perturbed_solution[:]
                 best_tour = perturbed_tour[:]
@@ -254,15 +282,17 @@ def main():
                 k = k_min
             else:
                 k += 1
-
-            print(
-                f"Iteração {iteration}, k={k}: Melhor solução {best_solution}, Distância {best_distance}, Cobertura {best_coverage}, Objetivo {best_objective}"
-            )
+            if best_objective != last_best_objective:
+                print(
+                    f"Iteração {iteration}, k={k}: Melhor solução {best_solution}, Distância {best_distance}, Cobertura {best_coverage}, Objetivo {best_objective}"
+                )
+                last_best_objective = best_objective
 
     print(f"Solução final: {best_solution}")
     print(f"Tour final: {best_tour}")
     print(f"Cobertura final: {best_coverage}")
     print(f"Objetivo final: {best_objective}")
+    print(f"Tempo: {time.time() - t0}")
 
 
 if __name__ == "__main__":
