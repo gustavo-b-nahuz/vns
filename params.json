@@ -1,0 +1,6 @@
+{
+    "p": 4,
+    "coverage_radius": 600,
+    "max_iterations": 1000,
+    "alpha": 0.1
+}
