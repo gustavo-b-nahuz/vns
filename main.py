@@ -147,6 +147,7 @@ def calculate_coverage(graph, solution, coverage_radius):
             for neighbor in graph.neighbors(node)
             if graph[node][neighbor]["weight"] <= coverage_radius
         )
+        covered.add(node)
     return len(covered)
 
 
@@ -190,7 +191,7 @@ def read_parameters_from_json(filename):
 
 
 def main():
-    num_vertices, edges = read_input_from_file("in.txt")
+    num_vertices, edges = read_input_from_file("in2.txt")
 
     graph = nx.Graph()
     graph.add_nodes_from(range(num_vertices))
