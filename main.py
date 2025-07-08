@@ -1,298 +1,256 @@
-import itertools
-import random
+import random, math, json, time
 import networkx as nx
 import matplotlib.pyplot as plt
-import math
-import json
-import time
+import os
+os.makedirs("frames", exist_ok=True)
+
+def draw_iteration(graph, picked, tour_edges, iteration):
+    pos = nx.spring_layout(graph, seed=42)            # posição fixa p/ todas figuras
+    plt.figure(figsize=(6, 5))
+    # nós
+    nx.draw_networkx_nodes(graph, pos,
+        nodelist=[v for v in graph.nodes if v in picked],
+        node_color="red", node_size=400)
+    nx.draw_networkx_nodes(graph, pos,
+        nodelist=[v for v in graph.nodes if v not in picked],
+        node_color="lightblue", node_size=400)
+    # arestas do tour (verde grosso)
+    nx.draw_networkx_edges(graph, pos,
+        edgelist=tour_edges, width=3, edge_color="green")
+    # arestas restantes em cinza fino
+    nx.draw_networkx_edges(graph, pos,
+        edgelist=[e for e in graph.edges if e not in tour_edges
+                                       and (e[1], e[0]) not in tour_edges],
+        width=0.5, edge_color="gray")
+    # rótulos
+    nx.draw_networkx_labels(graph, pos, font_size=8)
+    plt.title(f"Greedy – iteração {iteration}")
+    plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(f"frames/g_{iteration:02d}.png")
+    plt.close()
 
 
+# ---------- utilidades -------------------------------------------------
 def plot_graph(graph):
-    """Visualiza o grafo com pesos nas arestas."""
-    pos = nx.spring_layout(graph, seed=42)  # Define a posição dos nós
+    """Desenha o grafo com pesos nas arestas (opcional)."""
+    pos = nx.spring_layout(graph, seed=42)
     plt.figure(figsize=(8, 6))
-
-    # Desenha os nós e arestas
-    nx.draw(
-        graph,
-        pos,
-        with_labels=True,
-        node_color="lightblue",
-        edge_color="gray",
-        node_size=700,
-        font_weight="bold",
-    )
-
-    # Adiciona os pesos nas arestas
+    nx.draw(graph, pos, with_labels=True, node_color="lightblue",
+            edge_color="gray", node_size=700, font_weight="bold")
     edge_labels = nx.get_edge_attributes(graph, "weight")
-    nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels)
-
-    plt.title("Grafo de Entrada")
+    # nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
+    plt.title("Grafo completo gerado a partir da instância")
     plt.show()
 
 
 def euclidean_distance(x1, y1, x2, y2):
-    """Calcula a distância Euclidiana entre dois pontos 2D."""
-    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+    return math.hypot(x1 - x2, y1 - y2)
 
 
-def read_input_from_file(filename):
-    """Reads the input for the graph from a file containing vertex positions."""
-    with open(filename, "r") as file:
-        lines = file.readlines()
+def read_tsplib_instance(filename):
+    """
+    Lê arquivo TSPLIB (.tsp) e devolve (num_vertices, edges).
+    Assume EDGE_WEIGHT_TYPE = EUC_2D.
+    """
+    with open(filename, "r") as f:
+        lines = [ln.strip() for ln in f if ln.strip() and ln.strip() != "EOF"]
 
-    num_vertices = len(lines)
-    positions = {}
+    try:
+        idx = lines.index("NODE_COORD_SECTION") + 1
+    except ValueError:
+        raise ValueError("Arquivo TSPLIB sem NODE_COORD_SECTION")
+
+    coords = []
+    for ln in lines[idx:]:
+        parts = ln.split()
+        if len(parts) >= 3:
+            _, x, y = parts[:3]
+            coords.append((float(x), float(y)))
+
+    n = len(coords)
     edges = []
-
-    # Ler posições dos vértices
-    for line in lines:
-        parts = line.split()
-        node_id = int(parts[0]) - 1  # Ajustar para índice base 0
-        x, y = float(parts[1]), float(parts[2])
-        positions[node_id] = (x, y)
-
-    # Criar arestas completamente conectadas
-    for i in range(num_vertices):
-        for j in range(i + 1, num_vertices):
-            dist = euclidean_distance(
-                positions[i][0], positions[i][1], positions[j][0], positions[j][1]
-            )
-            edges.append((i, j, dist))
-            edges.append((j, i, dist))  # Grafo não direcionado
-
-    return num_vertices, edges
+    for i in range(n):
+        xi, yi = coords[i]
+        for j in range(i + 1, n):
+            xj, yj = coords[j]
+            d = euclidean_distance(xi, yi, xj, yj)
+            edges.append((i, j, d))
+            edges.append((j, i, d))
+    return n, edges
 
 
-def initialize_solution(graph, num_vertices, p, coverage_radius):
-    """Creates an initial solution using a greedy heuristic."""
-    covered = set()
-    solution = []
-    for _ in range(p):
-        best_node = None
-        best_coverage = 0
-        for node in range(num_vertices):
-            if node in solution:
+# ---------- construção inicial -----------------------------------------
+def initialize_solution(graph, n, p, radius):
+    covered, solution = set(), []
+    for it in range(p):
+        best_node, best_cov = None, 0
+        for v in range(n):
+            if v in solution:
                 continue
-            coverage = set(
-                neighbor
-                for neighbor in graph.neighbors(node)
-                if graph[node][neighbor]["weight"] <= coverage_radius
-                and neighbor not in covered
-            )
-            if len(coverage) > best_coverage:
-                best_node = node
-                best_coverage = len(coverage)
-
-        if best_node is None:
-            remaining = [node for node in range(num_vertices) if node not in solution]
-            if not remaining:
+            cov = {w for w in graph.neighbors(v)
+                   if graph[v][w]["weight"] <= radius and w not in covered}
+            if len(cov) > best_cov:
+                best_node, best_cov = v, len(cov)
+        if best_node is None:                   # ninguém aumenta cobertura
+            resto = [v for v in range(n) if v not in solution]
+            if not resto:
                 break
-            best_node = remaining[0]
-
+            best_node = resto[0]
+        print(f"\nIteração {it+1}")
+        print(f"  escolhido: {best_node}")          # +1 para id humano
+        print(f"  nova cobertura (ganho): {best_cov}")
+        print(f"  cobertos antes: {sorted(w+1 for w in covered)}")
         solution.append(best_node)
-        covered.update(
-            neighbor
-            for neighbor in graph.neighbors(best_node)
-            if graph[best_node][neighbor]["weight"] <= coverage_radius
-        )
+        covered.update({w for w in graph.neighbors(best_node)
+                        if graph[best_node][w]["weight"] <= radius})
         covered.add(best_node)
+        # ----- gerar tour parcial p/ desenho -------
+        tour_edges = []
+        if len(solution) > 1:
+            tour, _ = tsp_nearest_insertion(graph, solution)
+            tour_edges = [(tour[i], tour[i+1]) for i in range(len(tour)-1)]
 
+        # ----- desenhar / salvar figura ------------
+        draw_iteration(graph, solution, tour_edges, it)
     return solution
 
 
+# ---------- TSP heurística (inserção mais próxima) ---------------------
 def tsp_nearest_insertion(graph, nodes):
-    """Solves the TSP using the nearest insertion heuristic."""
     if len(nodes) <= 1:
-        print("Quantidade de nós era menor ou igual a um")
-        return nodes, 0
-
-    nodes_copy = nodes[:]
-    tour = [nodes_copy.pop(0)]  # Inicia o tour com o primeiro nó
-
-    while nodes_copy:
-        nearest_node = None
-        nearest_distance = float("inf")
-        insert_position = 0
-
-        for i in range(len(tour)):
-            for node in nodes_copy:
-                dist = graph[tour[i]][node]["weight"]
-                if dist < nearest_distance:
-                    nearest_node = node
-                    nearest_distance = dist
-                    insert_position = i
-
-        nodes_copy.remove(nearest_node)
-        tour.insert(insert_position + 1, nearest_node)
-
-    total_distance = sum(
-        graph[tour[i]][tour[i + 1]]["weight"] for i in range(len(tour) - 1)
-    )
-    total_distance += graph[tour[-1]][tour[0]]["weight"]  # Retorna ao início
-
-    return tour, total_distance
+        return nodes[:], 0.0
+    remaining = nodes[:]
+    tour = [remaining.pop(0)]
+    while remaining:
+        best, best_d, pos = None, float("inf"), 0
+        for i, u in enumerate(tour):
+            for v in remaining:
+                d = graph[u][v]["weight"]
+                if d < best_d:
+                    best, best_d, pos = v, d, i
+        remaining.remove(best)
+        tour.insert(pos + 1, best)
+    dist = sum(graph[tour[i]][tour[i + 1]]["weight"]
+               for i in range(len(tour) - 1))
+    dist += graph[tour[-1]][tour[0]]["weight"]
+    return tour, dist
 
 
-def calculate_objective(alpha, tour_distance, coverage):
-    """Calcula a função objetivo combinada."""
-    return alpha * tour_distance - (1 - alpha) * coverage
-
-
-def calculate_coverage(graph, solution, coverage_radius):
-    """Calcula a cobertura total de uma solução."""
-    covered = set()
-    for node in solution:
-        covered.update(
-            neighbor
-            for neighbor in graph.neighbors(node)
-            if graph[node][neighbor]["weight"] <= coverage_radius
-        )
-        covered.add(node)
+# ---------- cobertura e objetivo ---------------------------------------
+def calculate_coverage(graph, solution, radius):
+    covered = set(solution)  # cada estação cobre a si própria
+    for v in solution:
+        covered.update({w for w in graph.neighbors(v)
+                        if graph[v][w]["weight"] <= radius})
     return len(covered)
 
 
-def local_search(graph, solution, coverage_radius, alpha, visited_neighbors):
-    """Busca local: melhora a solução trocando vértices por seus vizinhos."""
-    # print("Entrou na busca local")
-    improvement = True
-    best_solution = solution[:]
-    best_tour, best_distance = tsp_nearest_insertion(graph, best_solution)
-    best_coverage = calculate_coverage(graph, best_solution, coverage_radius)
-    best_objective = calculate_objective(alpha, best_distance, best_coverage)
-    if tuple(best_solution) in visited_neighbors:
-        improvement = False
-
-    while improvement:
-        improvement = False
-        for i in range(len(best_solution)):
-            for neighbor in graph.neighbors(best_solution[i]):
-                if neighbor not in best_solution:
-                    new_solution = best_solution[:]
-                    new_solution[i] = neighbor
-                    new_tour, new_distance = tsp_nearest_insertion(graph, new_solution)
-                    new_coverage = calculate_coverage(
-                        graph, new_solution, coverage_radius
-                    )
-                    new_objective = calculate_objective(
-                        alpha, new_distance, new_coverage
-                    )
-
-                    if new_objective < best_objective:
-                        # print(
-                        #     f"Achou melhor na busca local:",
-                        #     new_solution,
-                        #     new_tour,
-                        #     new_objective,
-                        #     "Solução de entrada:",
-                        #     solution,
-                        # )
-                        best_solution = new_solution[:]
-                        best_tour = new_tour[:]
-                        best_distance = new_distance
-                        best_coverage = new_coverage
-                        best_objective = new_objective
-                        # print("Melhorou", best_objective)
-                        improvement = True
-                    else:
-                        visited_neighbors.add(tuple(solution[:]))
-    return best_solution, best_tour, best_distance, best_coverage, best_objective
+def objective(alpha, dist, cov):
+    return alpha * dist - (1 - alpha) * cov
 
 
-def read_parameters_from_json(filename):
-    """Lê os parâmetros do algoritmo a partir de um arquivo JSON."""
-    with open(filename, "r") as file:
-        return json.load(file)
+# ---------- busca local -------------------------------------------------
+def local_search(graph, sol, radius, alpha):
+    best_sol = sol[:]
+    best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
+    best_cov = calculate_coverage(graph, best_sol, radius)
+    best_obj = objective(alpha, best_dist, best_cov)
+
+    improved = True
+    while improved:
+        improved = False
+        for i in range(len(best_sol)):
+            v_old = best_sol[i]
+            for v_new in graph.neighbors(v_old):
+                if v_new in best_sol:
+                    continue
+                cand = best_sol[:]
+                cand[i] = v_new
+                tour, dist = tsp_nearest_insertion(graph, cand)
+                cov = calculate_coverage(graph, cand, radius)
+                obj = objective(alpha, dist, cov)
+                if obj < best_obj:
+                    (best_sol, best_tour, best_dist,
+                     best_cov, best_obj) = cand, tour, dist, cov, obj
+                    improved = True
+                    break
+            if improved:
+                break
+    return best_sol, best_tour, best_dist, best_cov, best_obj
 
 
+# ---------- carregar parâmetros ----------------------------------------
+def load_params(json_file):
+    with open(json_file, "r") as f:
+        return json.load(f)
+
+
+# ---------- programa principal -----------------------------------------
 def main():
-    num_vertices, edges = read_input_from_file("in.txt")
-    visited_neighbors = set()
+    params = load_params("params.json")
+    n, edges = read_tsplib_instance(params["instance_file"])
 
-    graph = nx.Graph()
-    graph.add_nodes_from(range(num_vertices))
-    graph.add_weighted_edges_from(edges)
-    # plot_graph(graph)
+    g = nx.Graph()
+    g.add_nodes_from(range(n))
+    g.add_weighted_edges_from(edges)
 
-    params = read_parameters_from_json("params.json")
-    p = params["p"]
-    coverage_radius = params["coverage_radius"]
-    max_iterations = params["max_iterations"]
-    alpha = params["alpha"]
-    k_min = 1
-    k_max = p
+    if params.get("plot_graph", False):
+        plot_graph(g)
 
-    solution = initialize_solution(graph, num_vertices, p, coverage_radius)
-    best_solution = solution[:]
-    best_tour, best_distance = tsp_nearest_insertion(graph, best_solution)
-    best_coverage = calculate_coverage(graph, best_solution, coverage_radius)
-    best_objective = calculate_objective(alpha, best_distance, best_coverage)
+    p              = params["p"]
+    radius         = params["coverage_radius"]
+    max_iter       = params["max_iterations"]
+    alpha          = params["alpha"]
+    k_min, k_max   = 1, p
 
-    print(
-        f"Solução inicial: {best_solution}, Distância inicial: {best_distance}, Cobertura inicial: {best_coverage}, Objetivo inicial: {best_objective}"
-    )
-    t0 = time.time()
-    for iteration in range(1, max_iterations + 1):
-        if iteration == 100:
-            print(time.time() - t0)
-        print(f"Iteração {iteration}")
+    sol = initialize_solution(g, n, p, radius)
+    best_sol = sol[:]
+    best_tour, best_dist = tsp_nearest_insertion(g, best_sol)
+    best_cov   = calculate_coverage(g, best_sol, radius)
+    best_obj   = objective(alpha, best_dist, best_cov)
+
+    print(f"Solução inicial  obj={best_obj:.2f}  dist={best_dist:.1f} "
+          f"cov={best_cov}  estações={best_sol}")
+
+    start = time.time()
+    for it in range(1, max_iter + 1):
         k = k_min
-        last_best_objective = best_objective
         while k <= k_max:
-            # print(
-            #     f"Iteração {iteration}, k={k}, vértices={best_solution}, melhor objetivo={best_objective}"
-            # )
-            perturbed_solution = best_solution[:]
+            # perturbação
+            pert = best_sol[:]
             for _ in range(k):
-                remove_node = random.choice(perturbed_solution)
-                perturbed_solution.remove(remove_node)
-                candidates = [n for n in graph.nodes if n not in perturbed_solution]
-                if candidates:
-                    new_node = random.choice(candidates)
-                    perturbed_solution.append(new_node)
-            # print(f"Vértices modificados após shuffle: {perturbed_solution}")
-            perturbed_tour, perturbed_distance = tsp_nearest_insertion(
-                graph, perturbed_solution
-            )
+                v_rem = random.choice(pert)
+                pert.remove(v_rem)
+                cand = [v for v in range(n) if v not in pert]
+                pert.append(random.choice(cand))
 
-            perturbed_coverage = calculate_coverage(
-                graph, perturbed_solution, coverage_radius
-            )
-            # print(
-            #     f"Tour, distancia e cobertura após shuffle: {perturbed_tour}, {perturbed_distance}, {perturbed_coverage}"
-            # )
-            perturbed_objective = calculate_objective(
-                alpha, perturbed_distance, perturbed_coverage
-            )
-            (
-                perturbed_solution,
-                perturbed_tour,
-                perturbed_distance,
-                perturbed_coverage,
-                perturbed_objective,
-            ) = local_search(
-                graph, perturbed_solution, coverage_radius, alpha, visited_neighbors
-            )
-            if perturbed_objective < best_objective:
-                best_solution = perturbed_solution[:]
-                best_tour = perturbed_tour[:]
-                best_distance = perturbed_distance
-                best_coverage = perturbed_coverage
-                best_objective = perturbed_objective
+            pert_tour, pert_dist = tsp_nearest_insertion(g, pert)
+            pert_cov = calculate_coverage(g, pert, radius)
+            pert_obj = objective(alpha, pert_dist, pert_cov)
+
+            # busca local
+            (pert_sol, pert_tour, pert_dist,
+             pert_cov, pert_obj) = local_search(g, pert, radius, alpha)
+
+            if pert_obj < best_obj:
+                best_sol, best_tour = pert_sol[:], pert_tour[:]
+                best_dist, best_cov, best_obj = pert_dist, pert_cov, pert_obj
                 k = k_min
             else:
                 k += 1
-            if best_objective != last_best_objective:
-                print(
-                    f"Iteração {iteration}, k={k}: Melhor solução {best_solution}, Distância {best_distance}, Cobertura {best_coverage}, Objetivo {best_objective}"
-                )
-                last_best_objective = best_objective
 
-    print(f"Solução final: {best_solution}")
-    print(f"Tour final: {best_tour}")
-    print(f"Cobertura final: {best_coverage}")
-    print(f"Objetivo final: {best_objective}")
-    print(f"Tempo: {time.time() - t0}")
+        if it % 50 == 0:
+            print(f"iter {it:4d}  obj={best_obj:.2f}")
+
+    elapsed = time.time() - start
+    print("\n=== Resultado Final ===")
+    print("Estações selecionadas :", best_sol)
+    print("Tour                 :", best_tour)
+    print(f"Distância tour       : {best_dist:.1f}")
+    print(f"Cobertura            : {best_cov}")
+    print(f"Objetivo final       : {best_obj:.2f}")
+    print(f"Tempo (s)            : {elapsed:.2f}")
 
 
 if __name__ == "__main__":

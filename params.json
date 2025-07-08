@@ -1,6 +1,8 @@
 {
+    "instance_file": "in2.txt",
+    "plot_graph": true,
     "p": 4,
     "coverage_radius": 600,
-    "max_iterations": 1000,
+    "max_iterations": 100,
     "alpha": 0.1
 }
