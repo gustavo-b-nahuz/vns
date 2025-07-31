@@ -4,25 +4,35 @@ import matplotlib.pyplot as plt
 import os
 os.makedirs("frames", exist_ok=True)
 
-def draw_iteration(graph, picked, tour_edges, iteration):
-    pos = nx.spring_layout(graph, seed=42)            # posição fixa p/ todas figuras
+def draw_iteration(graph, picked, covered, tour_edges, iteration):
+    pos = nx.spring_layout(graph, seed=42)
     plt.figure(figsize=(6, 5))
-    # nós
+
+    # nós selecionados (vermelho)
     nx.draw_networkx_nodes(graph, pos,
-        nodelist=[v for v in graph.nodes if v in picked],
+        nodelist=list(picked),
         node_color="red", node_size=400)
+
+    # nós cobertos mas não selecionados (cinza)
     nx.draw_networkx_nodes(graph, pos,
-        nodelist=[v for v in graph.nodes if v not in picked],
-        node_color="lightblue", node_size=400)
+        nodelist=[v for v in covered if v not in picked],
+        node_color="gray", node_size=300)
+
+    # nós ainda não cobertos (azul-claro)
+    nx.draw_networkx_nodes(graph, pos,
+        nodelist=[v for v in graph.nodes if v not in covered],
+        node_color="lightblue", node_size=300)
+
     # arestas do tour (verde grosso)
     nx.draw_networkx_edges(graph, pos,
         edgelist=tour_edges, width=3, edge_color="green")
-    # arestas restantes em cinza fino
+
+    # arestas restantes (cinza fino)
     nx.draw_networkx_edges(graph, pos,
-        edgelist=[e for e in graph.edges if e not in tour_edges
-                                       and (e[1], e[0]) not in tour_edges],
-        width=0.5, edge_color="gray")
-    # rótulos
+        edgelist=[e for e in graph.edges
+                  if e not in tour_edges and (e[1], e[0]) not in tour_edges],
+        width=0.4, edge_color="lightgray")
+
     nx.draw_networkx_labels(graph, pos, font_size=8)
     plt.title(f"Greedy – iteração {iteration}")
     plt.axis("off")
@@ -99,12 +109,13 @@ def initialize_solution(graph, n, p, radius):
             best_node = resto[0]
         print(f"\nIteração {it+1}")
         print(f"  escolhido: {best_node}")          # +1 para id humano
-        print(f"  nova cobertura (ganho): {best_cov}")
-        print(f"  cobertos antes: {sorted(w+1 for w in covered)}")
+        covered_before = len(covered)
         solution.append(best_node)
         covered.update({w for w in graph.neighbors(best_node)
                         if graph[best_node][w]["weight"] <= radius})
         covered.add(best_node)
+        print(f"  nova cobertura (ganho): {len(covered) - covered_before}")
+        print(f"  cobertos depois: {sorted(w for w in covered)}")
         # ----- gerar tour parcial p/ desenho -------
         tour_edges = []
         if len(solution) > 1:
@@ -112,7 +123,7 @@ def initialize_solution(graph, n, p, radius):
             tour_edges = [(tour[i], tour[i+1]) for i in range(len(tour)-1)]
 
         # ----- desenhar / salvar figura ------------
-        draw_iteration(graph, solution, tour_edges, it)
+        draw_iteration(graph, solution, covered, tour_edges, it+1)
     return solution
 
 
