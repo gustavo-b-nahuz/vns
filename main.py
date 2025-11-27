@@ -315,18 +315,13 @@ def main():
         print(it)
         k = k_min
         while k <= k_max:
-            # perturbação
-            # pert = best_sol[:]
-            # for _ in range(k):
-            #     v_rem = random.choice(pert)
-            #     pert.remove(v_rem)
-            #     cand = [v for v in range(n) if v not in pert]
-            #     pert.append(random.choice(cand))
+            #escolhe outra solução aleatória removendo k vértices e adicionando k do resto
             pert = shake_random(best_sol[:], n, k)
 
-            pert_tour, pert_dist = tsp_nearest_insertion(g, pert)
-            pert_cov = calculate_coverage(g, pert, radius)
-            pert_obj = objective(alpha, pert_dist, pert_cov)
+            #calcula rota ótima, distancia, cobertura e objetivo
+            # pert_tour, pert_dist = tsp_nearest_insertion(g, pert)
+            # pert_cov = calculate_coverage(g, pert, radius)
+            # pert_obj = objective(alpha, pert_dist, pert_cov)
 
             # busca local
             (pert_sol, pert_tour, pert_dist,
