@@ -90,6 +90,69 @@ def read_tsplib_instance(filename):
     return n, edges
 
 
+# ---------- TSP heurística (inserção mais próxima) ---------------------
+def tsp_nearest_insertion(graph, nodes):
+    if len(nodes) <= 1:
+        return nodes[:], 0.0
+
+    remaining = nodes[:]
+    tour = [remaining.pop(0)]  # começa com um nó arbitrário
+
+    # Enquanto houver nós para inserir
+    while remaining:
+        # -----------------------------
+        # 1) Selecionar o nó mais próximo do tour (NEAREST)
+        # -----------------------------
+        best_node = None
+        best_dist = float("inf")
+
+        for v in remaining:
+            # menor distância v → qualquer nó do tour
+            d = min(graph[v][u]["weight"] for u in tour)
+            if d < best_dist:
+                best_dist = d
+                best_node = v
+
+        # Remove o nó selecionado
+        remaining.remove(best_node)
+        
+        # Caso especial: tour com apenas 1 vértice
+        if len(tour) == 1:
+            tour.append(best_node)
+            continue
+
+        # -----------------------------
+        # 2) Inserir na melhor posição (CHEAPEST INSERTION)
+        # -----------------------------
+        best_pos = None
+        best_increase = float("inf")
+        
+        # Testando todas as posições do tour (entre cada par consecutivo)
+        for i in range(len(tour)):
+            u = tour[i]
+            w = tour[(i + 1) % len(tour)]  # próximo nó, com ciclo fechado
+
+            increase = (
+                    graph[u][best_node]["weight"] +
+                    graph[best_node][w]["weight"] -
+                    graph[u][w]["weight"]
+            )
+
+            if increase < best_increase:
+                best_increase = increase
+                best_pos = i + 1
+
+        tour.insert(best_pos, best_node)
+
+    # -----------------------------
+    # 3) Calcular a distância final do tour
+    # -----------------------------
+    total_dist = sum(graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
+                     for i in range(len(tour)))
+
+    return tour, total_dist
+
+
 # ---------- construção inicial -----------------------------------------
 def initialize_solution(graph, n, p, radius):
     covered, solution = set(), []
@@ -169,64 +232,6 @@ def shake_random(solution, n, k):
         sol.insert(pos, nd)
 
     return sol
-
-
-# ---------- TSP heurística (inserção mais próxima) ---------------------
-def tsp_nearest_insertion(graph, nodes):
-    if len(nodes) <= 1:
-        return nodes[:], 0.0
-
-    remaining = nodes[:]
-    tour = [remaining.pop(0)]  # começa com um nó arbitrário
-
-    # Enquanto houver nós para inserir
-    while remaining:
-        # -----------------------------
-        # 1) Selecionar o nó mais próximo do tour (NEAREST)
-        # -----------------------------
-        best_node = None
-        best_dist = float("inf")
-
-        for v in remaining:
-            # menor distância v → qualquer nó do tour
-            d = min(graph[v][u]["weight"] for u in tour)
-            if d < best_dist:
-                best_dist = d
-                best_node = v
-
-        # Remove o nó selecionado
-        remaining.remove(best_node)
-
-        # -----------------------------
-        # 2) Inserir na melhor posição (CHEAPEST INSERTION)
-        # -----------------------------
-        best_pos = None
-        best_increase = float("inf")
-
-        # Testando todas as posições do tour (entre cada par consecutivo)
-        for i in range(len(tour)):
-            u = tour[i]
-            w = tour[(i + 1) % len(tour)]  # próximo nó, com ciclo fechado
-
-            increase = (
-                    graph[u][best_node]["weight"] +
-                    graph[best_node][w]["weight"] -
-                    graph[u][w]["weight"]
-            )
-
-            if increase < best_increase:
-                best_increase = increase
-                best_pos = i + 1
-
-        tour.insert(best_pos, best_node)
-
-    # -----------------------------
-    # 3) Calcular a distância final do tour
-    # -----------------------------
-    total_dist = sum(graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
-                     for i in range(len(tour)))
-
-    return tour, total_dist
 
 
 # ---------- cobertura e objetivo ---------------------------------------
