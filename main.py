@@ -127,25 +127,106 @@ def initialize_solution(graph, n, p, radius):
     return solution
 
 
+# ---------- shaking da solução ----------------------------------------
+import random
+
+def shake_random(solution, n, k):
+    """
+    Implementação do ShakeRandom(x, k) igual ao descrito no artigo:
+
+    - Remove k vértices aleatórios da solução
+    - Adiciona k vértices aleatórios diferentes dos removidos
+    - Mantém tamanho p
+    """
+
+    p = len(solution)
+    sol = solution[:]                 # cópia da solução atual
+
+    # 1) Escolhe k índices aleatórios distintos
+    remove_idxs = random.sample(range(p), k)
+
+    # 2) Guarda os nós removidos
+    removed_nodes = [sol[i] for i in remove_idxs]
+
+    # 3) Remove esses nós da solução
+    for idx in sorted(remove_idxs, reverse=True):
+        sol.pop(idx)
+
+    # 4) Nós candidatos = todos que NÃO estão na sol e NÃO estão nos removidos
+    candidates = [v for v in range(n)
+                  if v not in sol and v not in removed_nodes]
+
+    # Se por acaso faltar candidatos (instâncias pequenas), permite recolocar removidos
+    if len(candidates) < k:
+        candidates = [v for v in range(n) if v not in sol]
+
+    # 5) Escolhe k novos nós aleatórios
+    new_nodes = random.sample(candidates, k)
+
+    # 6) Insere cada novo nó em posições aleatórias no tour
+    for nd in new_nodes:
+        pos = random.randrange(len(sol) + 1)
+        sol.insert(pos, nd)
+
+    return sol
+
+
 # ---------- TSP heurística (inserção mais próxima) ---------------------
 def tsp_nearest_insertion(graph, nodes):
     if len(nodes) <= 1:
         return nodes[:], 0.0
+
     remaining = nodes[:]
-    tour = [remaining.pop(0)]
+    tour = [remaining.pop(0)]  # começa com um nó arbitrário
+
+    # Enquanto houver nós para inserir
     while remaining:
-        best, best_d, pos = None, float("inf"), 0
-        for i, u in enumerate(tour):
-            for v in remaining:
-                d = graph[u][v]["weight"]
-                if d < best_d:
-                    best, best_d, pos = v, d, i
-        remaining.remove(best)
-        tour.insert(pos + 1, best)
-    dist = sum(graph[tour[i]][tour[i + 1]]["weight"]
-               for i in range(len(tour) - 1))
-    dist += graph[tour[-1]][tour[0]]["weight"]
-    return tour, dist
+        # -----------------------------
+        # 1) Selecionar o nó mais próximo do tour (NEAREST)
+        # -----------------------------
+        best_node = None
+        best_dist = float("inf")
+
+        for v in remaining:
+            # menor distância v → qualquer nó do tour
+            d = min(graph[v][u]["weight"] for u in tour)
+            if d < best_dist:
+                best_dist = d
+                best_node = v
+
+        # Remove o nó selecionado
+        remaining.remove(best_node)
+
+        # -----------------------------
+        # 2) Inserir na melhor posição (CHEAPEST INSERTION)
+        # -----------------------------
+        best_pos = None
+        best_increase = float("inf")
+
+        # Testando todas as posições do tour (entre cada par consecutivo)
+        for i in range(len(tour)):
+            u = tour[i]
+            w = tour[(i + 1) % len(tour)]  # próximo nó, com ciclo fechado
+
+            increase = (
+                    graph[u][best_node]["weight"] +
+                    graph[best_node][w]["weight"] -
+                    graph[u][w]["weight"]
+            )
+
+            if increase < best_increase:
+                best_increase = increase
+                best_pos = i + 1
+
+        tour.insert(best_pos, best_node)
+
+    # -----------------------------
+    # 3) Calcular a distância final do tour
+    # -----------------------------
+    total_dist = sum(graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
+                     for i in range(len(tour)))
+
+    return tour, total_dist
 
 
 # ---------- cobertura e objetivo ---------------------------------------
@@ -226,15 +307,17 @@ def main():
 
     start = time.time()
     for it in range(1, max_iter + 1):
+        print(it)
         k = k_min
         while k <= k_max:
             # perturbação
-            pert = best_sol[:]
-            for _ in range(k):
-                v_rem = random.choice(pert)
-                pert.remove(v_rem)
-                cand = [v for v in range(n) if v not in pert]
-                pert.append(random.choice(cand))
+            # pert = best_sol[:]
+            # for _ in range(k):
+            #     v_rem = random.choice(pert)
+            #     pert.remove(v_rem)
+            #     cand = [v for v in range(n) if v not in pert]
+            #     pert.append(random.choice(cand))
+            pert = shake_random(best_sol[:], n, k)
 
             pert_tour, pert_dist = tsp_nearest_insertion(g, pert)
             pert_cov = calculate_coverage(g, pert, radius)
