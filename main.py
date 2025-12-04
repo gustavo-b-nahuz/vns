@@ -2,6 +2,7 @@ import random, math, json, time
 import networkx as nx
 import matplotlib.pyplot as plt
 import os
+import itertools
 os.makedirs("frames", exist_ok=True)
 
 def draw_iteration(graph, picked, covered, tour_edges, iteration):
@@ -81,6 +82,35 @@ def plot_graph(graph):
     plt.ylabel("Y")
     plt.tight_layout()
     plt.show()
+
+
+def tsp_exact(graph, nodes):
+    """Resolve o TSP exato para um conjunto pequeno de nós (p <= 10)."""
+
+    if len(nodes) <= 1:
+        return nodes[:], 0.0
+
+    best_tour = None
+    best_dist = float("inf")
+
+    # fixa o primeiro nó (TSP simétrico, podemos fixar início)
+    start = nodes[0]
+    others = nodes[1:]
+
+    for perm in itertools.permutations(others):
+        tour = [start] + list(perm)
+        # calcular distância completa do ciclo
+        dist = 0
+        for i in range(len(tour)):
+            u = tour[i]
+            v = tour[(i + 1) % len(tour)]
+            dist += graph[u][v]["weight"]
+
+        if dist < best_dist:
+            best_dist = dist
+            best_tour = tour[:]
+
+    return best_tour, best_dist
 
 
 def euclidean_distance(x1, y1, x2, y2):
@@ -211,7 +241,7 @@ def initialize_solution(graph, n, p, radius):
         # ----- gerar tour parcial p/ desenho -------
         tour_edges = []
         if len(solution) > 1:
-            tour, _ = tsp_nearest_insertion(graph, solution)
+            tour, _ = tsp_exact(graph, solution)
             tour_edges = [(tour[i], tour[i+1]) for i in range(len(tour)-1)]
 
         # ----- desenhar / salvar figura ------------
@@ -278,31 +308,58 @@ def objective(alpha, dist, cov):
 
 # ---------- busca local -------------------------------------------------
 def local_search(graph, sol, radius, alpha):
+    # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
     best_cov = calculate_coverage(graph, best_sol, radius)
     best_obj = objective(alpha, best_dist, best_cov)
 
     improved = True
+
     while improved:
         improved = False
+
+        # guarda o melhor vizinho encontrado nesta iteração
+        best_neighbor_sol = None
+        best_neighbor_tour = None
+        best_neighbor_dist = None
+        best_neighbor_cov = None
+        best_neighbor_obj = float("inf")
+
+        # percorre todos os possíveis 1-swaps
         for i in range(len(best_sol)):
             v_old = best_sol[i]
-            for v_new in graph.neighbors(v_old):
+
+            for v_new in graph.nodes:
                 if v_new in best_sol:
                     continue
+
                 cand = best_sol[:]
                 cand[i] = v_new
+
+                # TSP heurístico (igual artigo)
                 tour, dist = tsp_nearest_insertion(graph, cand)
                 cov = calculate_coverage(graph, cand, radius)
                 obj = objective(alpha, dist, cov)
-                if obj < best_obj:
-                    (best_sol, best_tour, best_dist,
-                     best_cov, best_obj) = cand, tour, dist, cov, obj
-                    improved = True
-                    break
-            if improved:
-                break
+
+                # busca o MELHOR vizinho (não o primeiro)
+                if obj < best_neighbor_obj:
+                    best_neighbor_obj = obj
+                    best_neighbor_sol = cand
+                    best_neighbor_tour = tour
+                    best_neighbor_dist = dist
+                    best_neighbor_cov = cov
+
+        # após examinar todos os vizinhos:
+        if best_neighbor_obj < best_obj:
+            # aceita o melhor vizinho
+            best_sol = best_neighbor_sol
+            best_tour = best_neighbor_tour
+            best_dist = best_neighbor_dist
+            best_cov = best_neighbor_cov
+            best_obj = best_neighbor_obj
+            improved = True
+
     return best_sol, best_tour, best_dist, best_cov, best_obj
 
 
@@ -416,21 +473,31 @@ def main():
         print(it)
         k = k_min
         while k <= k_max:
-            #escolhe outra solução aleatória removendo k vértices e adicionando k do resto
+            # 1) SHAKE
             pert = shake_random(best_sol[:], n, k)
 
-            #calcula rota ótima, distancia, cobertura e objetivo
-            # pert_tour, pert_dist = tsp_nearest_insertion(g, pert)
-            # pert_cov = calculate_coverage(g, pert, radius)
-            # pert_obj = objective(alpha, pert_dist, pert_cov)
+            # 2) AVALIAÇÃO EXATA DA SOLUÇÃO APÓS O SHAKE (igual artigo)
+            # pert_exact_tour, pert_exact_dist = tsp_exact(g, pert)
+            # pert_exact_cov = calculate_coverage(g, pert, radius)
+            # pert_exact_obj = objective(alpha, pert_exact_dist, pert_exact_cov)
 
-            # busca local
-            (pert_sol, pert_tour, pert_dist,
-             pert_cov, pert_obj) = local_search(g, pert, radius, alpha)
+            # 3) BUSCA LOCAL (usa TSP heurístico — igual artigo)
+            (pert_sol
+            , pert_tour_heur, pert_dist_heur,pert_cov_heur, pert_obj_heur
+            ) = local_search(g, pert, radius, alpha)
 
-            if pert_obj < best_obj:
-                best_sol, best_tour = pert_sol[:], pert_tour[:]
-                best_dist, best_cov, best_obj = pert_dist, pert_cov, pert_obj
+            # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
+            pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
+            pert_final_cov = calculate_coverage(g, pert_sol, radius)
+            pert_final_obj = objective(alpha, pert_final_dist, pert_final_cov)
+
+            # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
+            if pert_final_obj < best_obj:
+                best_sol      = pert_sol[:]
+                best_tour     = pert_final_tour[:]
+                best_dist     = pert_final_dist
+                best_cov      = pert_final_cov
+                best_obj      = pert_final_obj
                 k = k_min
             else:
                 k += 1

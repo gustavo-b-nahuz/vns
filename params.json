@@ -3,6 +3,6 @@
     "plot_graph": true,
     "p": 4,
     "coverage_radius": 600,
-    "max_iterations": 10,
+    "max_iterations": 50,
     "alpha": 0.001
 }
