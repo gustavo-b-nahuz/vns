@@ -5,52 +5,81 @@ import os
 os.makedirs("frames", exist_ok=True)
 
 def draw_iteration(graph, picked, covered, tour_edges, iteration):
-    pos = nx.spring_layout(graph, seed=42)
+    # usar posições reais armazenadas no grafo
+    pos = {node: graph.nodes[node]["pos"] for node in graph.nodes}
+
     plt.figure(figsize=(6, 5))
 
     # nós selecionados (vermelho)
-    nx.draw_networkx_nodes(graph, pos,
+    nx.draw_networkx_nodes(
+        graph, pos,
         nodelist=list(picked),
-        node_color="red", node_size=400)
+        node_color="red",
+        node_size=120
+    )
 
     # nós cobertos mas não selecionados (cinza)
-    nx.draw_networkx_nodes(graph, pos,
+    nx.draw_networkx_nodes(
+        graph, pos,
         nodelist=[v for v in covered if v not in picked],
-        node_color="gray", node_size=300)
+        node_color="gray",
+        node_size=80
+    )
 
     # nós ainda não cobertos (azul-claro)
-    nx.draw_networkx_nodes(graph, pos,
+    nx.draw_networkx_nodes(
+        graph, pos,
         nodelist=[v for v in graph.nodes if v not in covered],
-        node_color="lightblue", node_size=300)
+        node_color="lightblue",
+        node_size=80
+    )
 
     # arestas do tour (verde grosso)
-    nx.draw_networkx_edges(graph, pos,
-        edgelist=tour_edges, width=3, edge_color="green")
+    nx.draw_networkx_edges(
+        graph, pos,
+        edgelist=tour_edges,
+        width=2.0,
+        edge_color="green"
+    )
 
-    # arestas restantes (cinza fino)
-    nx.draw_networkx_edges(graph, pos,
-        edgelist=[e for e in graph.edges
-                  if e not in tour_edges and (e[1], e[0]) not in tour_edges],
-        width=0.4, edge_color="lightgray")
+    # desenhar rótulos
+    nx.draw_networkx_labels(graph, pos, font_size=7)
 
-    nx.draw_networkx_labels(graph, pos, font_size=8)
     plt.title(f"Greedy – iteração {iteration}")
-    plt.axis("off")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.axis("equal")  # importante para não distorcer a geometria real
     plt.tight_layout()
-    plt.savefig(f"frames/g_{iteration:02d}.png")
+    plt.savefig(f"frames/g_{iteration:02d}.png", dpi=150)
     plt.close()
 
 
 # ---------- utilidades -------------------------------------------------
 def plot_graph(graph):
-    """Desenha o grafo com pesos nas arestas (opcional)."""
-    pos = nx.spring_layout(graph, seed=42)
+    """Desenha a instância no plano cartesiano usando coordenadas reais."""
+
+    # Pega posições reais de cada nó
+    pos = {node: graph.nodes[node]["pos"] for node in graph.nodes}
+
     plt.figure(figsize=(8, 6))
-    nx.draw(graph, pos, with_labels=True, node_color="lightblue",
-            edge_color="gray", node_size=700, font_weight="bold")
-    edge_labels = nx.get_edge_attributes(graph, "weight")
-    # nx.draw_networkx_edge_labels(graph, pos, edge_labels=edge_labels, font_size=6)
-    plt.title("Grafo completo gerado a partir da instância")
+
+    # Desenha só pontos, sem arestas
+    nx.draw_networkx_nodes(
+        graph, pos,
+        node_color="lightblue",
+        node_size=120
+    )
+
+    # Labels opcionais
+    nx.draw_networkx_labels(
+        graph, pos,
+        font_size=8
+    )
+
+    plt.title("Instância TSPLIB no Plano Cartesiano (EUC_2D)")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.tight_layout()
     plt.show()
 
 
@@ -87,7 +116,7 @@ def read_tsplib_instance(filename):
             d = euclidean_distance(xi, yi, xj, yj)
             edges.append((i, j, d))
             edges.append((j, i, d))
-    return n, edges
+    return n, edges, coords
 
 
 # ---------- TSP heurística (inserção mais próxima) ---------------------
@@ -283,13 +312,85 @@ def load_params(json_file):
         return json.load(f)
 
 
+def plot_final_solution(graph, best_sol, best_tour, radius):
+    """Plota o resultado final da solução no plano cartesiano real."""
+
+    pos = {node: graph.nodes[node]["pos"] for node in graph.nodes}
+
+    # calcular nós cobertos
+    covered = set(best_sol)
+    for v in best_sol:
+        covered.update({w for w in graph.neighbors(v)
+                        if graph[v][w]["weight"] <= radius})
+
+    # nós não cobertos
+    not_covered = [v for v in graph.nodes if v not in covered]
+    covered_not_selected = [v for v in covered if v not in best_sol]
+
+    plt.figure(figsize=(8, 6))
+
+    # 1. estações selecionadas (vermelho)
+    nx.draw_networkx_nodes(
+        graph, pos,
+        nodelist=best_sol,
+        node_color="red",
+        node_size=140,
+        label="Estações selecionadas"
+    )
+
+    # 2. cobertos mas não selecionados (cinza)
+    nx.draw_networkx_nodes(
+        graph, pos,
+        nodelist=covered_not_selected,
+        node_color="gray",
+        node_size=100,
+        label="Nós cobertos"
+    )
+
+    # 3. não cobertos (azul claro)
+    nx.draw_networkx_nodes(
+        graph, pos,
+        nodelist=not_covered,
+        node_color="lightblue",
+        node_size=100,
+        label="Não cobertos"
+    )
+
+    # 4. rota final (arestas verdes)
+    tour_edges = [(best_tour[i], best_tour[i + 1]) for i in range(len(best_tour) - 1)]
+    tour_edges.append((best_tour[-1], best_tour[0]))  # fechar ciclo
+
+    nx.draw_networkx_edges(
+        graph, pos,
+        edgelist=tour_edges,
+        width=2.5,
+        edge_color="green",
+        label="Tour final"
+    )
+
+    # labels dos nós
+    nx.draw_networkx_labels(graph, pos, font_size=7)
+
+    plt.title("Solução Final – Estações, Cobertura e Rota")
+    plt.xlabel("X")
+    plt.ylabel("Y")
+    plt.axis("equal")
+    plt.tight_layout()
+    plt.legend(loc="upper left")
+
+    plt.savefig("resultado_final.png", dpi=200)
+    plt.show()
+
+
 # ---------- programa principal -----------------------------------------
 def main():
     params = load_params("params.json")
-    n, edges = read_tsplib_instance(params["instance_file"])
+    n, edges, coords = read_tsplib_instance(params["instance_file"])
 
     g = nx.Graph()
-    g.add_nodes_from(range(n))
+    for i, (x, y) in enumerate(coords):
+        g.add_node(i, pos=(x, y))
+
     g.add_weighted_edges_from(edges)
 
     if params.get("plot_graph", False):
@@ -345,6 +446,8 @@ def main():
     print(f"Cobertura            : {best_cov}")
     print(f"Objetivo final       : {best_obj:.2f}")
     print(f"Tempo (s)            : {elapsed:.2f}")
+
+    plot_final_solution(g, best_sol, best_tour, radius)
 
 
 if __name__ == "__main__":
