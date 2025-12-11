@@ -1,7 +1,7 @@
 {
     "instance_file": "kroA100.tsp",
-    "plot_graph": true,
-    "p": 4,
+    "plot_graph": false,
+    "p": 6,
     "coverage_radius": 600,
     "max_iterations": 50,
     "alpha": 0.001

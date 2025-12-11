@@ -229,15 +229,15 @@ def initialize_solution(graph, n, p, radius):
             if not resto:
                 break
             best_node = resto[0]
-        print(f"\nIteração {it+1}")
-        print(f"  escolhido: {best_node}")          # +1 para id humano
+        # print(f"\nIteração {it+1}")
+        # print(f"  escolhido: {best_node}")          # +1 para id humano
         covered_before = len(covered)
         solution.append(best_node)
         covered.update({w for w in graph.neighbors(best_node)
                         if graph[best_node][w]["weight"] <= radius})
         covered.add(best_node)
-        print(f"  nova cobertura (ganho): {len(covered) - covered_before}")
-        print(f"  cobertos depois: {sorted(w for w in covered)}")
+        # print(f"  nova cobertura (ganho): {len(covered) - covered_before}")
+        # print(f"  cobertos depois: {sorted(w for w in covered)}")
         # ----- gerar tour parcial p/ desenho -------
         tour_edges = []
         if len(solution) > 1:
@@ -457,8 +457,8 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
     init_cov = calculate_coverage(g, sol, radius)
     init_obj = objective(alpha, init_dist, init_cov)
 
-    print(f"Solução inicial  obj={init_obj:.2f}  dist={init_dist:.1f} "
-          f"cov={init_cov}  estações={sol}")
+    # print(f"Solução inicial  obj={init_obj:.2f}  dist={init_dist:.1f} "
+    #       f"cov={init_cov}  estações={sol}")
 
     # ---------- INICIALIZAÇÃO DO VNS ----------
     best_sol = sol[:]
@@ -475,7 +475,7 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
 
     # ---------- LOOP PRINCIPAL DO VNS ----------
     for it in range(1, max_iter + 1):
-        print(it)
+        # print(it)
         k = k_min
         while k <= k_max:
             # 1) SHAKE
@@ -508,23 +508,23 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
                 time_best_found = time.time() - start
                 iter_best_found = it
 
-                print(
-                    f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} "
-                    f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
-                )
+                # print(
+                #     f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} "
+                #     f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
+                # )
             else:
                 k += 1
 
     elapsed = time.time() - start
 
-    print("\n=== Resultado Final ===")
-    print("Estações selecionadas :", best_sol)
-    print("Tour                 :", best_tour)
-    print(f"Distância tour       : {best_dist:.1f}")
-    print(f"Cobertura            : {best_cov}")
-    print(f"Objetivo final       : {best_obj:.2f}")
-    print(f"Tempo (s)            : {elapsed:.2f}")
-    print(f"Tempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
+    # print("\n=== Resultado Final ===")
+    # print("Estações selecionadas :", best_sol)
+    # print("Tour                 :", best_tour)
+    # print(f"Distância tour       : {best_dist:.1f}")
+    # print(f"Cobertura            : {best_cov}")
+    # print(f"Objetivo final       : {best_obj:.2f}")
+    # print(f"Tempo (s)            : {elapsed:.2f}")
+    # print(f"Tempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
