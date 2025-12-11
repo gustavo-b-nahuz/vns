@@ -549,85 +549,20 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
 # ---------- programa principal -----------------------------------------
 def main():
     params = load_params("params.json")
-    n, edges, coords = read_tsplib_instance(params["instance_file"])
 
-    g = nx.Graph()
-    for i, (x, y) in enumerate(coords):
-        g.add_node(i, pos=(x, y))
+    results = run_instance(
+        instance_file=params["instance_file"],
+        p=params["p"],
+        radius=params["coverage_radius"],
+        max_iter=params["max_iterations"],
+        alpha=params["alpha"],
+        plot=True,   # deixa True pra manter o gráfico na execução normal
+    )
 
-    g.add_weighted_edges_from(edges)
-
-    if params.get("plot_graph", False):
-        plot_graph(g)
-
-    p              = params["p"]
-    radius         = params["coverage_radius"]
-    max_iter       = params["max_iterations"]
-    alpha          = params["alpha"]
-    k_min, k_max   = 1, p
-
-    sol = initialize_solution(g, n, p, radius)
-    best_sol = sol[:]
-    best_tour, best_dist = tsp_nearest_insertion(g, best_sol)
-    best_cov   = calculate_coverage(g, best_sol, radius)
-    best_obj   = objective(alpha, best_dist, best_cov)
-
-    print(f"Solução inicial  obj={best_obj:.2f}  dist={best_dist:.1f} "
-          f"cov={best_cov}  estações={best_sol}")
-
-    start = time.time()
-    time_best_found = 0.0
-    for it in range(1, max_iter + 1):
-        print(it)
-        k = k_min
-        while k <= k_max:
-            # 1) SHAKE
-            pert = shake_random(best_sol[:], n, k)
-
-            # 2) AVALIAÇÃO EXATA DA SOLUÇÃO APÓS O SHAKE (igual artigo)
-            # pert_exact_tour, pert_exact_dist = tsp_exact(g, pert)
-            # pert_exact_cov = calculate_coverage(g, pert, radius)
-            # pert_exact_obj = objective(alpha, pert_exact_dist, pert_exact_cov)
-
-            # 3) BUSCA LOCAL (usa TSP heurístico — igual artigo)
-            (pert_sol
-            , pert_tour_heur, pert_dist_heur,pert_cov_heur, pert_obj_heur
-            ) = local_search(g, pert, radius, alpha)
-
-            # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
-            pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
-            pert_final_cov = calculate_coverage(g, pert_sol, radius)
-            pert_final_obj = objective(alpha, pert_final_dist, pert_final_cov)
-
-            # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
-            if pert_final_obj < best_obj:
-                best_sol      = pert_sol[:]
-                best_tour     = pert_final_tour[:]
-                best_dist     = pert_final_dist
-                best_cov      = pert_final_cov
-                best_obj      = pert_final_obj
-                k = k_min
-                
-                # salva o tempo exato em que a MELHOR solução foi encontrada
-                time_best_found = time.time() - start
-
-                print(f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} cov={best_cov}  "
-                    f"(tempo={time_best_found:.3f}s)")
-            else:
-                k += 1
-
-
-    elapsed = time.time() - start
-    print("\n=== Resultado Final ===")
-    print("Estações selecionadas :", best_sol)
-    print("Tour                 :", best_tour)
-    print(f"Distância tour       : {best_dist:.1f}")
-    print(f"Cobertura            : {best_cov}")
-    print(f"Objetivo final       : {best_obj:.2f}")
-    print(f"Tempo (s)            : {elapsed:.2f}")
-
-    print(f"\nTempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
-    plot_final_solution(g, best_sol, best_tour, radius)
+    # Se quiser já ver o dicionário retornado:
+    print("\nResumo (para debug / futuro CSV):")
+    for k, v in results.items():
+        print(f"{k}: {v}")
 
 
 if __name__ == "__main__":
