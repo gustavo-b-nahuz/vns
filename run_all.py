@@ -1,47 +1,46 @@
-import json
-import subprocess
-import itertools
 import os
+import itertools
+import pandas as pd
+from main import run_instance   # importa sua função
 
-# Valores que você pediu
+# CONFIGURAÇÃO DOS PARÂMETROS
+instance_file = "kroA100.tsp"
+
 p_values = [4, 6, 8]
-alpha_values = [0.001, 0.01, 0.1]
 radius_values = [600, 700, 800]
+alpha_values = [0.001, 0.01, 0.1]
+max_iterations = 100   # ou o que você usar normalmente
 
-# Arquivo de parâmetros (o que seu programa usa)
-PARAM_FILE = "params.json"
+# CRIAR PASTA BASEADA NA INSTÂNCIA
+inst_name = os.path.splitext(os.path.basename(instance_file))[0]
+output_dir = f"resultados_{inst_name}"
+os.makedirs(output_dir, exist_ok=True)
 
-# Onde salvar os logs de execução
-os.makedirs("resultados", exist_ok=True)
+# LISTA PARA GUARDAR TODOS OS RESULTADOS
+results = []
 
-# Gera todas as combinações cartesianas
-experimentos = list(itertools.product(p_values, alpha_values, radius_values))
+# LOOP DAS 27 COMBINAÇÕES
+for p, radius, alpha in itertools.product(p_values, radius_values, alpha_values):
 
-print(f"Rodando {len(experimentos)} experimentos...\n")
+    print(f"\n=== Rodando combinação p={p}, R={radius}, alpha={alpha} ===")
 
-for p, alpha, radius in experimentos:
-    # Monta o conteúdo do params.json
-    params = {
-        "instance_file": "kroA100.tsp",
-        "plot_graph": False,
-        "p": p,
-        "coverage_radius": radius,
-        "max_iterations": 10,
-        "alpha": alpha
-    }
+    res = run_instance(
+        instance_file=instance_file,
+        p=p,
+        radius=radius,
+        max_iter=max_iterations,
+        alpha=alpha,
+        plot=False   # não queremos 27 gráficos abrindo
+    )
 
-    # Salva o params.json antes da execução
-    with open(PARAM_FILE, "w") as f:
-        json.dump(params, f, indent=4)
+    results.append(res)
 
-    # Nome do arquivo de saída
-    out_name = f"resultados/p{p}_a{alpha}_r{radius}.txt"
+# SALVAR CSV FINAL
+df = pd.DataFrame(results)
+csv_path = os.path.join(output_dir, f"{inst_name}_resultados.csv")
+df.to_csv(csv_path, index=False)
 
-    print(f"Executando p={p}, alpha={alpha}, raio={radius}...")
-
-    # Chama seu programa principal
-    # Caso seu arquivo principal tenha outro nome, altere "main.py"
-    with open(out_name, "w") as outfile:
-        subprocess.run(["python3", "main.py"], stdout=outfile, stderr=outfile)
-
-print("\nExperimentos concluídos! Resultados em ./resultados/")
+print("\n======================================")
+print(" Execução concluída!")
+print(f" CSV salvo em: {csv_path}")
+print("======================================")
