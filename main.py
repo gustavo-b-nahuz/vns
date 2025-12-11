@@ -439,6 +439,113 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
+def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
+    # Carrega instância
+    n, edges, coords = read_tsplib_instance(instance_file)
+
+    g = nx.Graph()
+    for i, (x, y) in enumerate(coords):
+        g.add_node(i, pos=(x, y))
+
+    g.add_weighted_edges_from(edges)
+
+    # ---------- SOLUÇÃO INICIAL (GULOSO) ----------
+    sol = initialize_solution(g, n, p, radius)
+
+    # métrica da solução inicial (usando TSP heurístico, como antes)
+    init_tour, init_dist = tsp_nearest_insertion(g, sol)
+    init_cov = calculate_coverage(g, sol, radius)
+    init_obj = objective(alpha, init_dist, init_cov)
+
+    print(f"Solução inicial  obj={init_obj:.2f}  dist={init_dist:.1f} "
+          f"cov={init_cov}  estações={sol}")
+
+    # ---------- INICIALIZAÇÃO DO VNS ----------
+    best_sol = sol[:]
+    best_tour = init_tour[:]
+    best_dist = init_dist
+    best_cov  = init_cov
+    best_obj  = init_obj
+
+    k_min, k_max = 1, p
+
+    start = time.time()
+    time_best_found = 0.0
+    iter_best_found = 0
+
+    # ---------- LOOP PRINCIPAL DO VNS ----------
+    for it in range(1, max_iter + 1):
+        print(it)
+        k = k_min
+        while k <= k_max:
+            # 1) SHAKE
+            pert = shake_random(best_sol[:], n, k)
+
+            # 3) BUSCA LOCAL (usa TSP heurístico — igual artigo)
+            (
+                pert_sol,
+                pert_tour_heur,
+                pert_dist_heur,
+                pert_cov_heur,
+                pert_obj_heur
+            ) = local_search(g, pert, radius, alpha)
+
+            # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
+            pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
+            pert_final_cov = calculate_coverage(g, pert_sol, radius)
+            pert_final_obj = objective(alpha, pert_final_dist, pert_final_cov)
+
+            # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
+            if pert_final_obj < best_obj:
+                best_sol  = pert_sol[:]
+                best_tour = pert_final_tour[:]
+                best_dist = pert_final_dist
+                best_cov  = pert_final_cov
+                best_obj  = pert_final_obj
+                k = k_min
+
+                # salva o tempo e a iteração em que a MELHOR solução (até agora) foi encontrada
+                time_best_found = time.time() - start
+                iter_best_found = it
+
+                print(
+                    f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} "
+                    f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
+                )
+            else:
+                k += 1
+
+    elapsed = time.time() - start
+
+    print("\n=== Resultado Final ===")
+    print("Estações selecionadas :", best_sol)
+    print("Tour                 :", best_tour)
+    print(f"Distância tour       : {best_dist:.1f}")
+    print(f"Cobertura            : {best_cov}")
+    print(f"Objetivo final       : {best_obj:.2f}")
+    print(f"Tempo (s)            : {elapsed:.2f}")
+    print(f"Tempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
+
+    if plot:
+        plot_final_solution(g, best_sol, best_tour, radius)
+
+    # retorna tudo que vamos precisar pra montar a tabela depois
+    return {
+        "instance": instance_file,
+        "p": p,
+        "radius": radius,
+        "alpha": alpha,
+        "final_dist": best_dist,
+        "final_cov": best_cov,
+        "final_obj": best_obj,
+        "vns_time": elapsed,
+        "time_best_found": time_best_found,
+        "iter_best_found": iter_best_found,
+        "init_dist": init_dist,
+        "init_cov": init_cov,
+    }
+
+
 # ---------- programa principal -----------------------------------------
 def main():
     params = load_params("params.json")
@@ -469,6 +576,7 @@ def main():
           f"cov={best_cov}  estações={best_sol}")
 
     start = time.time()
+    time_best_found = 0.0
     for it in range(1, max_iter + 1):
         print(it)
         k = k_min
@@ -499,11 +607,15 @@ def main():
                 best_cov      = pert_final_cov
                 best_obj      = pert_final_obj
                 k = k_min
+                
+                # salva o tempo exato em que a MELHOR solução foi encontrada
+                time_best_found = time.time() - start
+
+                print(f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} cov={best_cov}  "
+                    f"(tempo={time_best_found:.3f}s)")
             else:
                 k += 1
 
-        if it % 50 == 0:
-            print(f"iter {it:4d}  obj={best_obj:.2f}")
 
     elapsed = time.time() - start
     print("\n=== Resultado Final ===")
@@ -514,6 +626,7 @@ def main():
     print(f"Objetivo final       : {best_obj:.2f}")
     print(f"Tempo (s)            : {elapsed:.2f}")
 
+    print(f"\nTempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
     plot_final_solution(g, best_sol, best_tour, radius)
 
 
