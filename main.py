@@ -302,17 +302,12 @@ def calculate_coverage(graph, solution, radius):
     return len(covered)
 
 
-def objective(alpha, dist, cov):
-    return alpha * dist - (1 - alpha) * cov
-
-
 # ---------- busca local -------------------------------------------------
-def local_search(graph, sol, radius, alpha):
+def local_search(graph, sol, radius):
     # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
     best_cov = calculate_coverage(graph, best_sol, radius)
-    best_obj = objective(alpha, best_dist, best_cov)
 
     improved = True
 
@@ -322,14 +317,11 @@ def local_search(graph, sol, radius, alpha):
         # guarda o melhor vizinho encontrado nesta iteração
         best_neighbor_sol = None
         best_neighbor_tour = None
-        best_neighbor_dist = None
-        best_neighbor_cov = None
-        best_neighbor_obj = float("inf")
+        best_neighbor_dist = float("inf")
+        best_neighbor_cov = 0
 
         # percorre todos os possíveis 1-swaps
         for i in range(len(best_sol)):
-            v_old = best_sol[i]
-
             for v_new in graph.nodes:
                 if v_new in best_sol:
                     continue
@@ -340,27 +332,26 @@ def local_search(graph, sol, radius, alpha):
                 # TSP heurístico (igual artigo)
                 tour, dist = tsp_nearest_insertion(graph, cand)
                 cov = calculate_coverage(graph, cand, radius)
-                obj = objective(alpha, dist, cov)
 
                 # busca o MELHOR vizinho (não o primeiro)
-                if obj < best_neighbor_obj:
-                    best_neighbor_obj = obj
+                if cov > 83:
+                    print("dist:", dist, "cov:", cov)
+                if best_neighbor_cov < cov or (best_neighbor_cov == cov and best_neighbor_dist > dist):# and best_neighbor_dist <= dist:
                     best_neighbor_sol = cand
                     best_neighbor_tour = tour
                     best_neighbor_dist = dist
                     best_neighbor_cov = cov
 
         # após examinar todos os vizinhos:
-        if best_neighbor_obj < best_obj:
+        if best_neighbor_cov > best_cov or (best_neighbor_cov == best_cov and best_neighbor_dist < best_dist):# and best_neighbor_dist <= best_dist:
             # aceita o melhor vizinho
             best_sol = best_neighbor_sol
             best_tour = best_neighbor_tour
             best_dist = best_neighbor_dist
             best_cov = best_neighbor_cov
-            best_obj = best_neighbor_obj
             improved = True
 
-    return best_sol, best_tour, best_dist, best_cov, best_obj
+    return best_sol, best_tour, best_dist, best_cov
 
 
 # ---------- carregar parâmetros ----------------------------------------
@@ -439,7 +430,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
+def run_instance(instance_file, p, radius, max_iter, plot=True):
     # Carrega instância
     n, edges, coords = read_tsplib_instance(instance_file)
 
@@ -455,7 +446,6 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
     # métrica da solução inicial (usando TSP heurístico, como antes)
     init_tour, init_dist = tsp_nearest_insertion(g, sol)
     init_cov = calculate_coverage(g, sol, radius)
-    init_obj = objective(alpha, init_dist, init_cov)
 
     # print(f"Solução inicial  obj={init_obj:.2f}  dist={init_dist:.1f} "
     #       f"cov={init_cov}  estações={sol}")
@@ -465,7 +455,6 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
     best_tour = init_tour[:]
     best_dist = init_dist
     best_cov  = init_cov
-    best_obj  = init_obj
 
     k_min, k_max = 1, p
 
@@ -487,31 +476,28 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
                 pert_tour_heur,
                 pert_dist_heur,
                 pert_cov_heur,
-                pert_obj_heur
-            ) = local_search(g, pert, radius, alpha)
+            ) = local_search(g, pert, radius)
 
             # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
             pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
             pert_final_cov = calculate_coverage(g, pert_sol, radius)
-            pert_final_obj = objective(alpha, pert_final_dist, pert_final_cov)
 
             # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
-            if pert_final_obj < best_obj:
+            if pert_final_cov > best_cov or (pert_final_cov == best_cov and pert_final_dist < best_dist):# and pert_final_dist <= best_dist:
                 best_sol  = pert_sol[:]
                 best_tour = pert_final_tour[:]
                 best_dist = pert_final_dist
                 best_cov  = pert_final_cov
-                best_obj  = pert_final_obj
                 k = k_min
 
                 # salva o tempo e a iteração em que a MELHOR solução (até agora) foi encontrada
                 time_best_found = time.time() - start
                 iter_best_found = it
 
-                # print(
-                #     f"Melhoria encontrada! obj={best_obj:.4f} dist={best_dist:.2f} "
-                #     f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
-                # )
+                print(
+                    f"Melhoria encontrada! dist={best_dist:.2f} "
+                    f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
+                )
             else:
                 k += 1
 
@@ -534,10 +520,8 @@ def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
         "instance": instance_file,
         "p": p,
         "radius": radius,
-        "alpha": alpha,
         "final_dist": best_dist,
         "final_cov": best_cov,
-        "final_obj": best_obj,
         "vns_time": elapsed,
         "time_best_found": time_best_found,
         "iter_best_found": iter_best_found,
@@ -555,7 +539,6 @@ def main():
         p=params["p"],
         radius=params["coverage_radius"],
         max_iter=params["max_iterations"],
-        alpha=params["alpha"],
         plot=True,   # deixa True pra manter o gráfico na execução normal
     )
 
