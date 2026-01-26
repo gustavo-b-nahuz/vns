@@ -334,16 +334,14 @@ def local_search(graph, sol, radius):
                 cov = calculate_coverage(graph, cand, radius)
 
                 # busca o MELHOR vizinho (não o primeiro)
-                if cov > 83:
-                    print("dist:", dist, "cov:", cov)
-                if best_neighbor_cov < cov or (best_neighbor_cov == cov and best_neighbor_dist > dist):# and best_neighbor_dist <= dist:
+                if best_neighbor_cov < cov:# and best_neighbor_dist <= dist:
                     best_neighbor_sol = cand
                     best_neighbor_tour = tour
                     best_neighbor_dist = dist
                     best_neighbor_cov = cov
 
         # após examinar todos os vizinhos:
-        if best_neighbor_cov > best_cov or (best_neighbor_cov == best_cov and best_neighbor_dist < best_dist):# and best_neighbor_dist <= best_dist:
+        if best_neighbor_cov > best_cov:# and best_neighbor_dist <= best_dist:
             # aceita o melhor vizinho
             best_sol = best_neighbor_sol
             best_tour = best_neighbor_tour
@@ -483,7 +481,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
             pert_final_cov = calculate_coverage(g, pert_sol, radius)
 
             # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
-            if pert_final_cov > best_cov or (pert_final_cov == best_cov and pert_final_dist < best_dist):# and pert_final_dist <= best_dist:
+            if pert_final_cov > best_cov:# and pert_final_dist <= best_dist:
                 best_sol  = pert_sol[:]
                 best_tour = pert_final_tour[:]
                 best_dist = pert_final_dist

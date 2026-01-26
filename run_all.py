@@ -3,6 +3,7 @@ import itertools
 import pandas as pd
 from main import run_instance   # importa sua função
 
+# Usar all_intances.py
 # CONFIGURAÇÃO DOS PARÂMETROS
 instance_file = "kroA100.tsp"
 

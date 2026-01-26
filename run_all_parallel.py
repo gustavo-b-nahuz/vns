@@ -4,7 +4,7 @@ import pandas as pd
 from multiprocessing import Pool, cpu_count
 from main import run_instance
 
-
+# Usar all_intances.py
 # ==========================================================
 # CONFIGURAÇÕES
 # ==========================================================
