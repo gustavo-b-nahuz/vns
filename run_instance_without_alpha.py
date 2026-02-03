@@ -8,13 +8,18 @@ from main import run_instance
 # ==========================================================
 # CONFIGURAÇÕES
 # ==========================================================
-INSTANCE_FILE = "kroA100.tsp"
+INSTANCES = [
+    "kroA100.tsp",
+    "kroA200.tsp",
+    "kroB100.tsp",
+    "kroB200.tsp",
+    "kroC100.tsp",
+    "kroD100.tsp",
+]
 
 p_values = [4, 6, 8]
 radius_values = [600, 700, 800]
 max_iterations = 30
-
-OUTPUT_CSV = "kroA100_vns_coverage_only.csv"
 
 
 # ==========================================================
@@ -44,27 +49,32 @@ if __name__ == "__main__":
 
     print("\n============================================")
     print(" Rodando VNS (coverage-first) em paralelo")
-    print(f" Instância: {INSTANCE_FILE}")
     print(f" CPUs disponíveis: {n_cpus}")
     print("============================================\n")
 
-    # gera todas as combinações (9 no seu caso: 3 p × 3 radius)
-    combos = list(itertools.product(
-        [INSTANCE_FILE],
-        p_values,
-        radius_values
-    ))
+    for instance in INSTANCES:
+        print(f"\n>>> Rodando instância: {instance}\n")
 
-    print(f"Total de execuções: {len(combos)}\n")
+        # gera combinações (p × radius)
+        combos = list(itertools.product(
+            [instance],
+            p_values,
+            radius_values
+        ))
 
-    # pool de processos
-    with Pool(processes=n_cpus) as pool:
-        results = pool.map(run_combo, combos)
+        print(f"Total de execuções: {len(combos)}")
 
-    # salva CSV
-    df = pd.DataFrame(results)
-    df.to_csv(OUTPUT_CSV, index=False)
+        with Pool(processes=n_cpus) as pool:
+            results = pool.map(run_combo, combos)
 
-    print("\n============================================")
-    print(f" Arquivo salvo: {OUTPUT_CSV}")
-    print("============================================\n")
+        # salva CSV da instância
+        inst_name = os.path.splitext(instance)[0]
+        output_csv = f"{inst_name}_vns_coverage_only.csv"
+
+        df = pd.DataFrame(results)
+        df.to_csv(output_csv, index=False)
+
+        print(f"\nArquivo salvo: {output_csv}")
+        print("--------------------------------------------")
+
+    print("\n===== TODAS AS INSTÂNCIAS FORAM PROCESSADAS =====\n")
