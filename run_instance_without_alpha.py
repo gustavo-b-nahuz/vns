@@ -8,6 +8,8 @@ from main import run_instance
 # ==========================================================
 # CONFIGURAÇÕES
 # ==========================================================
+INST_DIR = "instancias"
+
 INSTANCES = [
     "kroA100.tsp",
     "kroA200.tsp",
@@ -31,7 +33,7 @@ def run_combo(args):
     print(f"[PID {os.getpid()}] {instance_file}   p={p}, R={radius}")
 
     result = run_instance(
-        instance_file=instance_file,
+        instance_file=os.path.join(INST_DIR, instance_file),
         p=p,
         radius=radius,
         max_iter=max_iterations,

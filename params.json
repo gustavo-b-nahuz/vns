@@ -1,5 +1,5 @@
 {
-    "instance_file": "kroA100.tsp",
+    "instance_file": "instancias/kroD100.tsp",
     "plot_graph": false,
     "p": 8,
     "coverage_radius": 600,

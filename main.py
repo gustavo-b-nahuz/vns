@@ -334,14 +334,20 @@ def local_search(graph, sol, radius):
                 cov = calculate_coverage(graph, cand, radius)
 
                 # busca o MELHOR vizinho (não o primeiro)
-                if best_neighbor_cov < cov:# and best_neighbor_dist <= dist:
+                if (
+                    cov > best_neighbor_cov or
+                    (cov == best_neighbor_cov and dist < best_neighbor_dist)
+                ):
                     best_neighbor_sol = cand
                     best_neighbor_tour = tour
                     best_neighbor_dist = dist
                     best_neighbor_cov = cov
 
         # após examinar todos os vizinhos:
-        if best_neighbor_cov > best_cov:# and best_neighbor_dist <= best_dist:
+        if (
+            best_neighbor_cov > best_cov or
+            (best_neighbor_cov == best_cov and best_neighbor_dist < best_dist)
+        ):
             # aceita o melhor vizinho
             best_sol = best_neighbor_sol
             best_tour = best_neighbor_tour
@@ -462,7 +468,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
     # ---------- LOOP PRINCIPAL DO VNS ----------
     for it in range(1, max_iter + 1):
-        # print(it)
+        # print("\n=== Iteração VNS", it, "===")
         k = k_min
         while k <= k_max:
             # 1) SHAKE
@@ -481,7 +487,10 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
             pert_final_cov = calculate_coverage(g, pert_sol, radius)
 
             # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
-            if pert_final_cov > best_cov:# and pert_final_dist <= best_dist:
+            if (
+                pert_final_cov > best_cov or
+                (pert_final_cov == best_cov and pert_final_dist < best_dist)
+            ):
                 best_sol  = pert_sol[:]
                 best_tour = pert_final_tour[:]
                 best_dist = pert_final_dist
@@ -492,10 +501,10 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
                 time_best_found = time.time() - start
                 iter_best_found = it
 
-                print(
-                    f"Melhoria encontrada! dist={best_dist:.2f} "
-                    f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
-                )
+                # print(
+                #     f"Melhoria encontrada! dist={best_dist:.2f} "
+                #     f"cov={best_cov}  (tempo={time_best_found:.3f}s, it={iter_best_found})"
+                # )
             else:
                 k += 1
 
