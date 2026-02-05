@@ -150,64 +150,67 @@ def read_tsplib_instance(filename):
 
 
 # ---------- TSP heurística (inserção mais próxima) ---------------------
-def tsp_nearest_insertion(graph, nodes):
+def tsp_nearest_insertion_optimized(graph, nodes):
     if len(nodes) <= 1:
         return nodes[:], 0.0
 
+    # -----------------------------
+    # Inicialização
+    # -----------------------------
     remaining = nodes[:]
-    tour = [remaining.pop(0)]  # começa com um nó arbitrário
+    start = remaining.pop(0)
+    tour = [start]
 
-    # Enquanto houver nós para inserir
+    # minDist[v] = menor distância de v até o tour atual
+    minDist = {}
+    for v in remaining:
+        minDist[v] = graph[v][start]["weight"]
+
+    # -----------------------------
+    # Loop principal
+    # -----------------------------
     while remaining:
-        # -----------------------------
-        # 1) Selecionar o nó mais próximo do tour (NEAREST)
-        # -----------------------------
-        best_node = None
-        best_dist = float("inf")
-
-        for v in remaining:
-            # menor distância v → qualquer nó do tour
-            d = min(graph[v][u]["weight"] for u in tour)
-            if d < best_dist:
-                best_dist = d
-                best_node = v
-
-        # Remove o nó selecionado
+        # 1) Escolher o nó mais próximo do tour (O(n))
+        best_node = min(remaining, key=lambda v: minDist[v])
         remaining.remove(best_node)
-        
-        # Caso especial: tour com apenas 1 vértice
+
+        # Caso especial: tour com apenas 1 nó
         if len(tour) == 1:
             tour.append(best_node)
-            continue
+        else:
+            # 2) Cheapest insertion (O(n))
+            best_pos = None
+            best_increase = float("inf")
 
-        # -----------------------------
-        # 2) Inserir na melhor posição (CHEAPEST INSERTION)
-        # -----------------------------
-        best_pos = None
-        best_increase = float("inf")
-        
-        # Testando todas as posições do tour (entre cada par consecutivo)
-        for i in range(len(tour)):
-            u = tour[i]
-            w = tour[(i + 1) % len(tour)]  # próximo nó, com ciclo fechado
+            for i in range(len(tour)):
+                u = tour[i]
+                w = tour[(i + 1) % len(tour)]
 
-            increase = (
+                increase = (
                     graph[u][best_node]["weight"] +
                     graph[best_node][w]["weight"] -
                     graph[u][w]["weight"]
-            )
+                )
 
-            if increase < best_increase:
-                best_increase = increase
-                best_pos = i + 1
+                if increase < best_increase:
+                    best_increase = increase
+                    best_pos = i + 1
 
-        tour.insert(best_pos, best_node)
+            tour.insert(best_pos, best_node)
+
+        # 3) Atualizar distâncias mínimas (O(n))
+        for v in remaining:
+            d = graph[v][best_node]["weight"]
+            if d < minDist[v]:
+                minDist[v] = d
 
     # -----------------------------
-    # 3) Calcular a distância final do tour
+    # Cálculo do custo final
     # -----------------------------
-    total_dist = sum(graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
-                     for i in range(len(tour)))
+    total_dist = sum(
+        graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
+        for i in range(len(tour))
+    )
 
     return tour, total_dist
 
@@ -302,11 +305,22 @@ def calculate_coverage(graph, solution, radius):
     return len(covered)
 
 
+def calculate_coverage_set(graph, solution, radius):
+    covered = set(solution)
+    for v in solution:
+        covered.update(
+            w for w in graph.neighbors(v)
+            if graph[v][w]["weight"] <= radius
+        )
+    return covered
+
+
+
 # ---------- busca local -------------------------------------------------
 def local_search(graph, sol, radius):
     # solução e valor inicial
     best_sol = sol[:]
-    best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
+    best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
     best_cov = calculate_coverage(graph, best_sol, radius)
 
     improved = True
@@ -330,7 +344,7 @@ def local_search(graph, sol, radius):
                 cand[i] = v_new
 
                 # TSP heurístico (igual artigo)
-                tour, dist = tsp_nearest_insertion(graph, cand)
+                tour, dist = tsp_nearest_insertion_optimized(graph, cand)
                 cov = calculate_coverage(graph, cand, radius)
 
                 # busca o MELHOR vizinho (não o primeiro)
@@ -356,6 +370,102 @@ def local_search(graph, sol, radius):
             improved = True
 
     return best_sol, best_tour, best_dist, best_cov
+
+
+def local_search_2swap(graph, sol, radius, max_tries_per_pair=200):
+    best_sol = sol[:]
+    best_cov_set = calculate_coverage_set(graph, best_sol, radius)
+    best_cov = len(best_cov_set)
+    best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
+
+    n = graph.number_of_nodes()
+    p = len(best_sol)
+
+    improved = True
+    while improved:
+        improved = False
+
+        outside = [v for v in range(n) if v not in best_sol]
+
+        for i in range(p):
+            for j in range(i + 1, p):
+                if len(outside) < 2:
+                    continue
+
+                for _ in range(min(max_tries_per_pair, len(outside))):
+                    v1, v2 = random.sample(outside, 2)
+
+                    cand = best_sol[:]
+                    cand[i] = v1
+                    cand[j] = v2
+
+                    # ---- cobertura primeiro (BARATO) ----
+                    cand_cov_set = calculate_coverage_set(graph, cand, radius)
+                    cand_cov = len(cand_cov_set)
+
+                    if cand_cov < best_cov:
+                        continue
+
+                    # ---- TSP só se fizer sentido ----
+                    tour, dist = tsp_nearest_insertion_optimized(graph, cand)
+
+                    if (
+                        cand_cov > best_cov or
+                        (cand_cov == best_cov and dist < best_dist)
+                    ):
+                        best_sol = cand
+                        best_cov = cand_cov
+                        best_cov_set = cand_cov_set
+                        best_tour = tour
+                        best_dist = dist
+                        improved = True
+                        break
+
+                if improved:
+                    break
+            if improved:
+                break
+
+    return best_sol, best_tour, best_dist, best_cov
+
+
+def tour_distance(graph, tour):
+    return sum(
+        graph[tour[i]][tour[(i + 1) % len(tour)]]["weight"]
+        for i in range(len(tour))
+    )
+
+def two_opt_swap(tour, i, k):
+    return tour[:i] + tour[i:k+1][::-1] + tour[k+1:]
+
+def two_opt(graph, tour):
+    best = tour[:]
+    best_dist = tour_distance(graph, best)
+
+    improved = True
+    while improved:
+        improved = False
+        # i começa em 1 para não mexer no primeiro nó (opcional, mas comum)
+        for i in range(1, len(best) - 1):
+            for k in range(i + 1, len(best)):
+                new_tour = two_opt_swap(best, i, k)
+                new_dist = tour_distance(graph, new_tour)
+                if new_dist < best_dist:
+                    best = new_tour
+                    best_dist = new_dist
+                    improved = True
+                    break
+            if improved:
+                break
+
+    return best, best_dist
+
+def local_search_2opt(graph, sol, radius, tour=None):
+    cov = calculate_coverage(graph, sol, radius)
+    if tour is None:
+        tour, _ = tsp_nearest_insertion_optimized(graph, sol)
+    tour, dist = two_opt(graph, tour)
+    return sol[:], tour, dist, cov
 
 
 # ---------- carregar parâmetros ----------------------------------------
@@ -448,11 +558,11 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
     sol = initialize_solution(g, n, p, radius)
 
     # métrica da solução inicial (usando TSP heurístico, como antes)
-    init_tour, init_dist = tsp_nearest_insertion(g, sol)
+    init_tour, init_dist = tsp_nearest_insertion_optimized(g, sol)
     init_cov = calculate_coverage(g, sol, radius)
 
-    # print(f"Solução inicial  obj={init_obj:.2f}  dist={init_dist:.1f} "
-    #       f"cov={init_cov}  estações={sol}")
+    print(f"Solução inicial  dist={init_dist:.1f} "
+          f"cov={init_cov}  estações={sol}")
 
     # ---------- INICIALIZAÇÃO DO VNS ----------
     best_sol = sol[:]
@@ -460,7 +570,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
     best_dist = init_dist
     best_cov  = init_cov
 
-    k_min, k_max = 1, p
+    k_min, k_max = 1, math.floor((2/3)*p)
 
     start = time.time()
     time_best_found = 0.0
@@ -471,30 +581,22 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
         # print("\n=== Iteração VNS", it, "===")
         k = k_min
         while k <= k_max:
-            # 1) SHAKE
+            # print(f"  - Shaking com k={k}...")
             pert = shake_random(best_sol[:], n, k)
 
-            # 3) BUSCA LOCAL (usa TSP heurístico — igual artigo)
-            (
-                pert_sol,
-                pert_tour_heur,
-                pert_dist_heur,
-                pert_cov_heur,
-            ) = local_search(g, pert, radius)
+            cand_sol, cand_tour, cand_dist, cand_cov = local_search_2swap(g, pert, radius)
+            # print("Fez busca local 2-swap.")
+            cand_sol, cand_tour, cand_dist, cand_cov = local_search_2opt(g, cand_sol, radius, tour=cand_tour)
+            # print("Fez busca local 2-opt.")
 
-            # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
-            pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
-            pert_final_cov = calculate_coverage(g, pert_sol, radius)
-
-            # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)
             if (
-                pert_final_cov > best_cov or
-                (pert_final_cov == best_cov and pert_final_dist < best_dist)
+                cand_cov > best_cov or
+                (cand_cov == best_cov and cand_dist < best_dist)
             ):
-                best_sol  = pert_sol[:]
-                best_tour = pert_final_tour[:]
-                best_dist = pert_final_dist
-                best_cov  = pert_final_cov
+                best_sol  = cand_sol[:]
+                best_tour = cand_tour[:]
+                best_dist = cand_dist
+                best_cov  = cand_cov
                 k = k_min
 
                 # salva o tempo e a iteração em que a MELHOR solução (até agora) foi encontrada
@@ -509,15 +611,6 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
                 k += 1
 
     elapsed = time.time() - start
-
-    # print("\n=== Resultado Final ===")
-    # print("Estações selecionadas :", best_sol)
-    # print("Tour                 :", best_tour)
-    # print(f"Distância tour       : {best_dist:.1f}")
-    # print(f"Cobertura            : {best_cov}")
-    # print(f"Objetivo final       : {best_obj:.2f}")
-    # print(f"Tempo (s)            : {elapsed:.2f}")
-    # print(f"Tempo até encontrar a melhor solução retornada: {time_best_found:.4f} segundos")
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
