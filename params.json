@@ -1,8 +1,8 @@
 {
-    "instance_file": "instancias/kroA100.tsp",
+    "instance_file": "instancias/kroA200.tsp",
     "plot_graph": false,
-    "p": 4,
-    "coverage_radius": 800,
+    "p": 6,
+    "coverage_radius": 700,
     "max_iterations": 100,
     "alpha": 0.001
 }
