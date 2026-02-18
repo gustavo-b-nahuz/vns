@@ -3,6 +3,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import os
 import itertools
+from matplotlib.patches import Circle
 os.makedirs("frames", exist_ok=True)
 
 def draw_iteration(graph, picked, covered, tour_edges, iteration):
@@ -217,38 +218,73 @@ def tsp_nearest_insertion_optimized(graph, nodes):
 
 # ---------- construção inicial -----------------------------------------
 def initialize_solution(graph, n, p, radius):
-    covered, solution = set(), []
+    covered = set()
+    solution = []
+
+    print("\n=== INICIALIZAÇÃO GULOSA ===")
+
     for it in range(p):
-        best_node, best_cov = None, 0
+        t0 = time.time()
+
+        best_node = None
+        best_gain = -1
+
         for v in range(n):
             if v in solution:
                 continue
-            cov = {w for w in graph.neighbors(v)
-                   if graph[v][w]["weight"] <= radius and w not in covered}
-            if len(cov) > best_cov:
-                best_node, best_cov = v, len(cov)
-        if best_node is None:                   # ninguém aumenta cobertura
+
+            gain = sum(
+                1 for w in graph.neighbors(v)
+                if graph[v][w]["weight"] <= radius and w not in covered
+            )
+
+            if gain > best_gain:
+                best_node = v
+                best_gain = gain
+
+        if best_node is None:
+            print("Nenhum nó aumentou cobertura. Selecionando arbitrário.")
             resto = [v for v in range(n) if v not in solution]
             if not resto:
                 break
             best_node = resto[0]
-        # print(f"\nIteração {it+1}")
-        # print(f"  escolhido: {best_node}")          # +1 para id humano
+            best_gain = 0
+
         covered_before = len(covered)
+
         solution.append(best_node)
-        covered.update({w for w in graph.neighbors(best_node)
-                        if graph[best_node][w]["weight"] <= radius})
+
+        covered.update(
+            w for w in graph.neighbors(best_node)
+            if graph[best_node][w]["weight"] <= radius
+        )
         covered.add(best_node)
-        # print(f"  nova cobertura (ganho): {len(covered) - covered_before}")
-        # print(f"  cobertos depois: {sorted(w for w in covered)}")
-        # ----- gerar tour parcial p/ desenho -------
+
+        covered_after = len(covered)
+
+        print(f"\nIteração {it+1}")
+        print(f"Escolhido: {best_node}")
+        print(f"Ganho marginal: {best_gain}")
+        print(f"Cobertura total: {covered_after}")
+        print(f"Tamanho solução: {len(solution)}")
+
+        # ---- usar heurística TSP, NÃO exato ----
         tour_edges = []
         if len(solution) > 1:
-            tour, _ = tsp_exact(graph, solution)
-            tour_edges = [(tour[i], tour[i+1]) for i in range(len(tour)-1)]
+            tour, _ = tsp_nearest_insertion_optimized(graph, solution)
+            tour_edges = [
+                (tour[i], tour[i+1])
+                for i in range(len(tour)-1)
+            ]
 
-        # ----- desenhar / salvar figura ------------
         draw_iteration(graph, solution, covered, tour_edges, it+1)
+
+        print(f"Tempo iteração: {time.time() - t0:.3f}s")
+
+    print("\n=== FIM DA INICIALIZAÇÃO ===")
+    print(f"Solução final: {solution}")
+    print(f"Cobertura final: {len(covered)}")
+
     return solution
 
 
@@ -447,7 +483,7 @@ def local_search_2swap(graph, sol, cover_sets):
                         best_tour = tour
                         best_dist = dist
                         improved = True
-                        print(f"  -> 2-swap melhorou: dist={best_dist:.1f} cov={best_cov} ")
+                        # print(f"  -> 2-swap melhorou: dist={best_dist:.1f} cov={best_cov} ")
                         break
 
                 if improved:
@@ -542,7 +578,7 @@ def load_params(json_file):
 
 
 def plot_final_solution(graph, best_sol, best_tour, radius):
-    """Plota o resultado final da solução no plano cartesiano real."""
+    """Plota solução final com círculos de cobertura reais."""
 
     pos = {node: graph.nodes[node]["pos"] for node in graph.nodes}
 
@@ -552,61 +588,91 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
         covered.update({w for w in graph.neighbors(v)
                         if graph[v][w]["weight"] <= radius})
 
-    # nós não cobertos
     not_covered = [v for v in graph.nodes if v not in covered]
     covered_not_selected = [v for v in covered if v not in best_sol]
 
-    plt.figure(figsize=(8, 6))
+    fig, ax = plt.subplots(figsize=(8, 6))
 
-    # 1. estações selecionadas (vermelho)
+    # -------------------------
+    # DESENHAR CÍRCULOS DE COBERTURA
+    # -------------------------
+    for v in best_sol:
+        x, y = pos[v]
+        circle = Circle(
+            (x, y),
+            radius,
+            edgecolor='red',
+            facecolor='red',
+            alpha=0.08,
+            linewidth=1.5
+        )
+        ax.add_patch(circle)
+
+    # -------------------------
+    # nós
+    # -------------------------
     nx.draw_networkx_nodes(
         graph, pos,
         nodelist=best_sol,
         node_color="red",
         node_size=140,
-        label="Estações selecionadas"
+        label="Depósitos",
+        ax=ax
     )
 
-    # 2. cobertos mas não selecionados (cinza)
     nx.draw_networkx_nodes(
         graph, pos,
         nodelist=covered_not_selected,
         node_color="gray",
         node_size=100,
-        label="Nós cobertos"
+        label="Cobertos",
+        ax=ax
     )
 
-    # 3. não cobertos (azul claro)
     nx.draw_networkx_nodes(
         graph, pos,
         nodelist=not_covered,
         node_color="lightblue",
         node_size=100,
-        label="Não cobertos"
+        label="Não cobertos",
+        ax=ax
     )
 
-    # 4. rota final (arestas verdes)
+    # -------------------------
+    # rota
+    # -------------------------
     tour_edges = [(best_tour[i], best_tour[i + 1]) for i in range(len(best_tour) - 1)]
-    tour_edges.append((best_tour[-1], best_tour[0]))  # fechar ciclo
+    tour_edges.append((best_tour[-1], best_tour[0]))
 
     nx.draw_networkx_edges(
         graph, pos,
         edgelist=tour_edges,
         width=2.5,
         edge_color="green",
-        label="Tour final"
+        ax=ax
     )
 
-    # labels dos nós
-    nx.draw_networkx_labels(graph, pos, font_size=7)
+    # labels
+    nx.draw_networkx_labels(graph, pos, font_size=7, ax=ax)
 
-    plt.title("Solução Final – Estações, Cobertura e Rota")
-    plt.xlabel("X")
-    plt.ylabel("Y")
-    plt.axis("equal")
+    # -------------------------
+    # escala real
+    # -------------------------
+    xs = [pos[v][0] for v in graph.nodes]
+    ys = [pos[v][1] for v in graph.nodes]
+
+    ax.autoscale()
+    ax.set_aspect("equal", adjustable="box")
+
+    ax.set_xlabel("X")
+    ax.set_ylabel("Y")
+    ax.grid(True, linestyle="--", alpha=0.4)
+
+    ax.set_aspect("equal")
+
+    ax.set_title("Solução Final com Raio de Cobertura")
+
     plt.tight_layout()
-    plt.legend(loc="upper left")
-
     plt.savefig("resultado_final.png", dpi=200)
     plt.show()
 
@@ -623,9 +689,11 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
     g.add_weighted_edges_from(edges)
     
     cover_sets = build_cover_sets(g, radius)
+    print("Construiu cover sets")
 
     # ----- Solução inicial (gulosa) -----
     sol = initialize_solution(g, n, p, radius)
+    print("Solução inicial construída")
 
     init_tour, init_dist = tsp_nearest_insertion_optimized(g, sol)
     init_cov = calculate_coverage(g, sol, radius)
@@ -673,9 +741,9 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
                 time_best_found = time.time() - start
                 iter_best_found = it
-                print(f"  -> Nova melhor solução! dist={best_dist:.1f} "
-                      f"cov={best_cov} estações={best_sol} "
-                      f"(encontrada na vizinhança {which_neigh})")
+                # print(f"  -> Nova melhor solução! dist={best_dist:.1f} "
+                #       f"cov={best_cov} estações={best_sol} "
+                #       f"(encontrada na vizinhança {which_neigh})")
 
             else:
                 k += 1

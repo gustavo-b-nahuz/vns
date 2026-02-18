@@ -21,7 +21,7 @@ INSTANCES = [
 
 p_values = [4, 6, 8]
 radius_values = [600, 700, 800]
-max_iterations = 150
+max_iterations = 100
 
 
 # ==========================================================
@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
         # salva CSV da instância
         inst_name = os.path.splitext(instance)[0]
-        output_csv = f"{inst_name}_vns_2wap_2opt.csv"
+        output_csv = f"{inst_name}_vns_vnd_1swap_and_2swap.csv"
 
         df = pd.DataFrame(results)
         df.to_csv(output_csv, index=False)
