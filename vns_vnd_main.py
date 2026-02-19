@@ -1,3 +1,4 @@
+# versao do codigo com vns e vnd dentro dele com 1 swap e 2 swap
 import random, math, json, time
 import networkx as nx
 import matplotlib.pyplot as plt
@@ -288,90 +289,6 @@ def initialize_solution(graph, n, p, radius):
     return solution
 
 
-def initialize_solution_grasp(graph, n, p, radius, cover_sets, rcl_size=10, rng=None):
-    """
-    GRASP constructive:
-    - Em cada iteração, calcula ganho marginal (novos cobertos)
-    - Monta RCL com os rcl_size melhores
-    - Escolhe 1 aleatório da RCL
-    """
-    if rng is None:
-        rng = random
-
-    covered = set()
-    solution = []
-    rcl_size = math.floor(n * 0.2)
-
-    for _ in range(p):
-        candidates = []
-        for v in range(n):
-            if v in solution:
-                continue
-            gain = len(cover_sets[v] - covered)
-            candidates.append((gain, v))
-
-        # ordena por ganho desc
-        candidates.sort(reverse=True)
-
-        # se tudo zero (ou lista vazia), escolhe qualquer fora
-        if not candidates:
-            break
-
-        best_gain = candidates[0][0]
-        if best_gain <= 0:
-            # sem ganho: ainda assim escolhe para manter tamanho p
-            remaining = [v for v in range(n) if v not in solution]
-            chosen = rng.choice(remaining)
-        else:
-            # RCL = top rcl_size (ou menos)
-            rcl = [v for (g, v) in candidates[:min(rcl_size, len(candidates))]]
-            chosen = rng.choice(rcl)
-
-        solution.append(chosen)
-        covered |= cover_sets[chosen]   # inclui ele e seus cobertos (já vem no cover_sets)
-
-    return solution
-
-
-def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, rcl_size=10, seed=None):
-    rng = random.Random(seed)
-
-    best_sol = None
-    best_tour = None
-    best_dist = float("inf")
-    best_cov = -1
-    time_start = time.time()
-    time_best_found = 0
-    iter_best_found = 0
-
-    for it in range(1, grasp_iters + 1):
-        # 1) construtivo randomizado
-        sol0 = initialize_solution_grasp(graph, n, p, radius, cover_sets, rcl_size=rcl_size, rng=rng)
-
-        # 2) intensificação
-        cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(graph, sol0, radius, cover_sets, spatial_neighbors)
-
-        # 3) aceita se melhor lexicograficamente
-        if (cand_cov > best_cov) or (cand_cov == best_cov and cand_dist < best_dist):
-            best_sol = cand_sol[:]
-            best_tour = cand_tour[:]
-            best_dist = cand_dist
-            best_cov = cand_cov
-            time_best_found = time.time() - time_start
-            iter_best_found = it
-
-            print("\n  >>> NOVO ÓTIMO GRASP ENCONTRADO <<<")
-            print(f"      Iteração GRASP: {it}/{grasp_iters}")
-            print(f"      Vizinhança responsável (último ganho no VND): {which_neigh}")
-            print(f"      Cobertura: {best_cov}")
-            print(f"      Distância: {best_dist:.2f}")
-            print(f"      Estações: {best_sol}")
-            print(f"      Tempo decorrido: {time.time() - time_start:.2f}s")
-            print()
-
-    return best_sol, best_tour, best_dist, best_cov, (time.time() - time_start), time_best_found, iter_best_found
-
-
 # ---------- shaking da solução ----------------------------------------
 import random
 
@@ -457,7 +374,7 @@ def calculate_coverage_from_precomputed(solution, cover_sets):
 
 
 # ---------- busca local -------------------------------------------------
-def local_search(graph, sol, radius, cover_sets, spatial_neighbors):
+def local_search(graph, sol, radius, cover_sets):
     # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
@@ -476,7 +393,7 @@ def local_search(graph, sol, radius, cover_sets, spatial_neighbors):
 
         # percorre todos os possíveis 1-swaps
         for i in range(len(best_sol)):
-            for v_new in spatial_neighbors[best_sol[i]]:
+            for v_new in graph.nodes:
                 if v_new in best_sol:
                     continue
 
@@ -620,7 +537,7 @@ def local_search_2opt(graph, sol, radius, tour=None):
     return sol[:], tour, dist, cov
 
 
-def vnd(graph, sol, radius, cover_sets, spatial_neighbors):
+def vnd(graph, sol, radius, cover_sets):
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
     best_cov = len(calculate_coverage_from_precomputed(best_sol, cover_sets))
@@ -632,7 +549,7 @@ def vnd(graph, sol, radius, cover_sets, spatial_neighbors):
     while k <= k_max:
 
         if k == 1:
-            cand_sol, cand_tour, cand_dist, cand_cov = local_search(graph, best_sol, radius, cover_sets, spatial_neighbors)
+            cand_sol, cand_tour, cand_dist, cand_cov = local_search(graph, best_sol, radius, cover_sets)
             neigh_name = "1-swap"
 
         elif k == 2:
@@ -772,11 +689,11 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     ax.set_title("Solução Final com Raio de Cobertura")
 
     plt.tight_layout()
-    plt.savefig("resultado_final_grasp.png", dpi=200)
+    plt.savefig("resultado_final_vns.png", dpi=200)
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=False):
+def run_instance(instance_file, p, radius, max_iter, plot=True):
 
     # ----- Carrega instância -----
     n, edges, coords = read_tsplib_instance(instance_file)
@@ -790,36 +707,76 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=F
     diameter = max(data["weight"] for _, _, data in g.edges(data=True))
 
     radius_fraction = 0.10  # 10%
-    if auto_paramters:
-        radius = radius_fraction * diameter
+    radius = radius_fraction * diameter
     
-        p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
+    p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
     
     cover_sets = build_cover_sets(g, radius)
-    
-    limit = 1.5 * radius
-    limit2 = limit * limit
 
-    spatial_neighbors = []
-    for v in range(n):
-        xv, yv = coords[v]
-        neigh = []
-        for w in range(n):
-            if w == v:
-                continue
-            xw, yw = coords[w]
-            dx = xv - xw
-            dy = yv - yw
-            if dx*dx + dy*dy <= limit2:
-                neigh.append(w)
-        spatial_neighbors.append(neigh)
+    # ----- Solução inicial (gulosa) -----
+    sol = initialize_solution(g, n, p, radius)
+    print("Solução inicial construída")
 
-    best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found = grasp(
-        g, n, p, radius, cover_sets, spatial_neighbors,
-        grasp_iters=150,
-        rcl_size=10,
-        seed=123,
-    )
+    init_tour, init_dist = tsp_nearest_insertion_optimized(g, sol)
+    init_cov = calculate_coverage(g, sol, radius)
+
+    print(f"Solução inicial  dist={init_dist:.1f} "
+          f"cov={init_cov}  estações={sol}")
+
+    # ----- Inicialização do VNS -----
+    best_sol = sol[:]
+    best_tour = init_tour[:]
+    best_dist = init_dist
+    best_cov  = init_cov
+
+    k_min = 1
+    k_max = math.floor((2/3)*p)
+
+    start = time.time()
+    time_best_found = 0.0
+    iter_best_found = 0
+
+    # ----- Loop principal do VNS -----
+    for it in range(1, max_iter + 1):
+        print(f"\nIteração {it}/{max_iter}")
+        k = k_min
+
+        while k <= k_max:
+            # print(f"  Vizinhança k={k}")
+            # ---- Shaking ----
+            pert = shake_random(best_sol[:], n, k)
+
+            # ---- VND interno ----
+            cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(g, pert, radius, cover_sets)
+
+            # ---- Critério de aceitação (lexicográfico) ----
+            if (
+                cand_cov > best_cov or
+                (cand_cov == best_cov and cand_dist < best_dist)
+            ):
+                best_sol  = cand_sol[:]
+                best_tour = cand_tour[:]
+                best_dist = cand_dist
+                best_cov  = cand_cov
+
+
+                time_best_found = time.time() - start
+                iter_best_found = it
+                print("\n  >>> NOVO ÓTIMO GLOBAL ENCONTRADO <<<")
+                print(f"      Iteração VNS: {it}")
+                print(f"      Vizinhança responsável: {which_neigh}")
+                print(f"      Cobertura: {best_cov}")
+                print(f"      Distância: {best_dist:.2f}")
+                print(f"      Estações: {best_sol}")
+                print(f"      Tempo decorrido: {time.time() - start:.2f}s")
+                print(f"      k atual: {k}")
+                print()
+                k = k_min
+
+            else:
+                k += 1
+
+    elapsed = time.time() - start
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
@@ -833,6 +790,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=F
         "total_time": elapsed,
         "time_best_found": time_best_found,
         "iter_best_found": iter_best_found,
+        "init_dist": init_dist,
+        "init_cov": init_cov,
     }
 
 
@@ -847,7 +806,6 @@ def main():
         radius=params["coverage_radius"],
         max_iter=params["max_iterations"],
         plot=True,   # deixa True pra manter o gráfico na execução normal
-        auto_paramters=params.get("auto_parameters", False)
     )
 
     # Se quiser já ver o dicionário retornado:

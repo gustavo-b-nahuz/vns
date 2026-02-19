@@ -1,8 +1,8 @@
 {
-    "instance_file": "instancias/kroB200.tsp",
+    "instance_file": "instancias/pcb442.tsp",
     "plot_graph": false,
-    "p": 10,
-    "coverage_radius": 120,
-    "max_iterations": 50,
+    "p": 20,
+    "coverage_radius": 450,
+    "max_iterations": 100,
     "alpha": 0.001
 }
