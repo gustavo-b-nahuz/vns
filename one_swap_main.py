@@ -241,7 +241,7 @@ def initialize_solution(graph, n, p, radius):
         # ----- gerar tour parcial p/ desenho -------
         tour_edges = []
         if len(solution) > 1:
-            tour, _ = tsp_exact(graph, solution)
+            tour, _ = tsp_nearest_insertion(graph, solution)
             tour_edges = [(tour[i], tour[i+1]) for i in range(len(tour)-1)]
 
         # ----- desenhar / salvar figura ------------
@@ -468,7 +468,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
     # ---------- LOOP PRINCIPAL DO VNS ----------
     for it in range(1, max_iter + 1):
-        # print("\n=== Iteração VNS", it, "===")
+        print("\n=== Iteração VNS", it, "===")
         k = k_min
         while k <= k_max:
             # 1) SHAKE
@@ -483,7 +483,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
             ) = local_search(g, pert, radius)
 
             # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
-            pert_final_tour, pert_final_dist = tsp_exact(g, pert_sol)
+            pert_final_tour, pert_final_dist = tsp_nearest_insertion(g, pert_sol)
             pert_final_cov = calculate_coverage(g, pert_sol, radius)
 
             # 5) ACEITAÇÃO (com base no OBJETIVO EXATO)

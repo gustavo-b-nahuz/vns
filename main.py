@@ -741,9 +741,14 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
                 time_best_found = time.time() - start
                 iter_best_found = it
-                # print(f"  -> Nova melhor solução! dist={best_dist:.1f} "
-                #       f"cov={best_cov} estações={best_sol} "
-                #       f"(encontrada na vizinhança {which_neigh})")
+                print("\n  >>> NOVO ÓTIMO GLOBAL ENCONTRADO <<<")
+                print(f"      Iteração VNS: {it}")
+                print(f"      Vizinhança responsável: {which_neigh}")
+                print(f"      Cobertura: {best_cov}")
+                print(f"      Distância: {best_dist:.2f}")
+                print(f"      Estações: {best_sol}")
+                print(f"      Tempo decorrido: {time.time() - start:.2f}s")
+                print()
 
             else:
                 k += 1
