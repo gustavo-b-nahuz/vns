@@ -2,7 +2,7 @@ import os
 import itertools
 import pandas as pd
 from multiprocessing import Pool, cpu_count
-from main import run_instance
+from grasp_main import run_instance
 
 
 # ==========================================================

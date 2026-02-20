@@ -776,7 +776,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=False):
+def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
 
     # ----- Carrega instância -----
     n, edges, coords = read_tsplib_instance(instance_file)
@@ -790,7 +790,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=F
     diameter = max(data["weight"] for _, _, data in g.edges(data=True))
 
     radius_fraction = 0.10  # 10%
-    if auto_paramters:
+    if auto_parameters:
         radius = radius_fraction * diameter
     
         p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
@@ -816,7 +816,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_paramters=F
 
     best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found = grasp(
         g, n, p, radius, cover_sets, spatial_neighbors,
-        grasp_iters=150,
+        grasp_iters=1000,
         rcl_size=10,
         seed=123,
     )
@@ -847,7 +847,7 @@ def main():
         radius=params["coverage_radius"],
         max_iter=params["max_iterations"],
         plot=True,   # deixa True pra manter o gráfico na execução normal
-        auto_paramters=params.get("auto_parameters", False)
+        auto_parameters=params.get("auto_parameters", False)
     )
 
     # Se quiser já ver o dicionário retornado:
