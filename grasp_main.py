@@ -221,7 +221,7 @@ def initialize_solution(graph, n, p, radius):
     covered = set()
     solution = []
 
-    print("\n=== INICIALIZAÇÃO GULOSA ===")
+    # print("\n=== INICIALIZAÇÃO GULOSA ===")
 
     for it in range(p):
         t0 = time.time()
@@ -243,7 +243,7 @@ def initialize_solution(graph, n, p, radius):
                 best_gain = gain
 
         if best_node is None:
-            print("Nenhum nó aumentou cobertura. Selecionando arbitrário.")
+            # print("Nenhum nó aumentou cobertura. Selecionando arbitrário.")
             resto = [v for v in range(n) if v not in solution]
             if not resto:
                 break
@@ -262,11 +262,11 @@ def initialize_solution(graph, n, p, radius):
 
         covered_after = len(covered)
 
-        print(f"\nIteração {it+1}")
-        print(f"Escolhido: {best_node}")
-        print(f"Ganho marginal: {best_gain}")
-        print(f"Cobertura total: {covered_after}")
-        print(f"Tamanho solução: {len(solution)}")
+        # print(f"\nIteração {it+1}")
+        # print(f"Escolhido: {best_node}")
+        # print(f"Ganho marginal: {best_gain}")
+        # print(f"Cobertura total: {covered_after}")
+        # print(f"Tamanho solução: {len(solution)}")
 
         # ---- usar heurística TSP, NÃO exato ----
         tour_edges = []
@@ -279,11 +279,11 @@ def initialize_solution(graph, n, p, radius):
 
         draw_iteration(graph, solution, covered, tour_edges, it+1)
 
-        print(f"Tempo iteração: {time.time() - t0:.3f}s")
+        # print(f"Tempo iteração: {time.time() - t0:.3f}s")
 
-    print("\n=== FIM DA INICIALIZAÇÃO ===")
-    print(f"Solução final: {solution}")
-    print(f"Cobertura final: {len(covered)}")
+    # print("\n=== FIM DA INICIALIZAÇÃO ===")
+    # print(f"Solução final: {solution}")
+    # print(f"Cobertura final: {len(covered)}")
 
     return solution
 
@@ -360,14 +360,16 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, r
             time_best_found = time.time() - time_start
             iter_best_found = it
 
-            print("\n  >>> NOVO ÓTIMO GRASP ENCONTRADO <<<")
-            print(f"      Iteração GRASP: {it}/{grasp_iters}")
-            print(f"      Vizinhança responsável (último ganho no VND): {which_neigh}")
-            print(f"      Cobertura: {best_cov}")
-            print(f"      Distância: {best_dist:.2f}")
-            print(f"      Estações: {best_sol}")
-            print(f"      Tempo decorrido: {time.time() - time_start:.2f}s")
-            print()
+            # print("\n  >>> NOVO ÓTIMO GRASP ENCONTRADO <<<")
+            # print(f"      Iteração GRASP: {it}/{grasp_iters}")
+            # print(f"      Vizinhança responsável (último ganho no VND): {which_neigh}")
+            # print(f"      Cobertura: {best_cov}")
+            # print(f"      Distância: {best_dist:.2f}")
+            # print(f"      Estações: {best_sol}")
+            # print(f"      Tempo decorrido: {time.time() - time_start:.2f}s")
+            # print()
+        if time.time() - time_start > 600:
+            break
 
     return best_sol, best_tour, best_dist, best_cov, (time.time() - time_start), time_best_found, iter_best_found
 

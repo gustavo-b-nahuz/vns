@@ -303,7 +303,7 @@ def calculate_coverage(graph, solution, radius):
 
 
 # ---------- busca local -------------------------------------------------
-def local_search(graph, sol, radius):
+def local_search(graph, sol, radius, start_time, time_limit=10):
     # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
@@ -312,6 +312,8 @@ def local_search(graph, sol, radius):
     improved = True
 
     while improved:
+        if time.time() - start_time > time_limit:
+            return best_sol, best_tour, best_dist, best_cov
         improved = False
 
         # guarda o melhor vizinho encontrado nesta iteração
@@ -322,6 +324,8 @@ def local_search(graph, sol, radius):
 
         # percorre todos os possíveis 1-swaps
         for i in range(len(best_sol)):
+            if time.time() - start_time > time_limit:
+                return best_sol, best_tour, best_dist, best_cov
             for v_new in graph.nodes:
                 if v_new in best_sol:
                     continue
@@ -434,7 +438,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True):
+def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
     # Carrega instância
     n, edges, coords = read_tsplib_instance(instance_file)
 
@@ -443,6 +447,14 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
         g.add_node(i, pos=(x, y))
 
     g.add_weighted_edges_from(edges)
+    
+    diameter = max(data["weight"] for _, _, data in g.edges(data=True))
+
+    radius_fraction = 0.10  # 10%
+    if auto_parameters:
+        radius = radius_fraction * diameter
+    
+        p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
 
     # ---------- SOLUÇÃO INICIAL (GULOSO) ----------
     sol = initialize_solution(g, n, p, radius)
@@ -465,12 +477,15 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
     start = time.time()
     time_best_found = 0.0
     iter_best_found = 0
+    time_limit = 600
 
     # ---------- LOOP PRINCIPAL DO VNS ----------
     for it in range(1, max_iter + 1):
         print("\n=== Iteração VNS", it, "===")
         k = k_min
         while k <= k_max:
+            if time.time() - start > time_limit:
+                break
             # 1) SHAKE
             pert = shake_random(best_sol[:], n, k)
 
@@ -480,7 +495,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
                 pert_tour_heur,
                 pert_dist_heur,
                 pert_cov_heur,
-            ) = local_search(g, pert, radius)
+            ) = local_search(g, pert, radius, start, time_limit)
 
             # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
             pert_final_tour, pert_final_dist = tsp_nearest_insertion(g, pert_sol)
@@ -507,6 +522,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
                 # )
             else:
                 k += 1
+        if time.time() - start > time_limit:
+            break
 
     elapsed = time.time() - start
 
@@ -547,6 +564,7 @@ def main():
         radius=params["coverage_radius"],
         max_iter=params["max_iterations"],
         plot=True,   # deixa True pra manter o gráfico na execução normal
+        auto_parameters=params.get("auto_parameters", False)
     )
 
     # Se quiser já ver o dicionário retornado:

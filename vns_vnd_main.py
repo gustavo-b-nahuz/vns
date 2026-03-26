@@ -222,7 +222,7 @@ def initialize_solution(graph, n, p, radius):
     covered = set()
     solution = []
 
-    print("\n=== INICIALIZAÇÃO GULOSA ===")
+    # print("\n=== INICIALIZAÇÃO GULOSA ===")
 
     for it in range(p):
         t0 = time.time()
@@ -244,7 +244,7 @@ def initialize_solution(graph, n, p, radius):
                 best_gain = gain
 
         if best_node is None:
-            print("Nenhum nó aumentou cobertura. Selecionando arbitrário.")
+            # print("Nenhum nó aumentou cobertura. Selecionando arbitrário.")
             resto = [v for v in range(n) if v not in solution]
             if not resto:
                 break
@@ -263,11 +263,11 @@ def initialize_solution(graph, n, p, radius):
 
         covered_after = len(covered)
 
-        print(f"\nIteração {it+1}")
-        print(f"Escolhido: {best_node}")
-        print(f"Ganho marginal: {best_gain}")
-        print(f"Cobertura total: {covered_after}")
-        print(f"Tamanho solução: {len(solution)}")
+        # print(f"\nIteração {it+1}")
+        # print(f"Escolhido: {best_node}")
+        # print(f"Ganho marginal: {best_gain}")
+        # print(f"Cobertura total: {covered_after}")
+        # print(f"Tamanho solução: {len(solution)}")
 
         # ---- usar heurística TSP, NÃO exato ----
         tour_edges = []
@@ -280,11 +280,11 @@ def initialize_solution(graph, n, p, radius):
 
         draw_iteration(graph, solution, covered, tour_edges, it+1)
 
-        print(f"Tempo iteração: {time.time() - t0:.3f}s")
+        # print(f"Tempo iteração: {time.time() - t0:.3f}s")
 
-    print("\n=== FIM DA INICIALIZAÇÃO ===")
-    print(f"Solução final: {solution}")
-    print(f"Cobertura final: {len(covered)}")
+    # print("\n=== FIM DA INICIALIZAÇÃO ===")
+    # print(f"Solução final: {solution}")
+    # print(f"Cobertura final: {len(covered)}")
 
     return solution
 
@@ -693,7 +693,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True):
+def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
 
     # ----- Carrega instância -----
     n, edges, coords = read_tsplib_instance(instance_file)
@@ -707,21 +707,22 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
     diameter = max(data["weight"] for _, _, data in g.edges(data=True))
 
     radius_fraction = 0.10  # 10%
-    radius = radius_fraction * diameter
+    if auto_parameters:
+        radius = radius_fraction * diameter
     
-    p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
+        p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
     
     cover_sets = build_cover_sets(g, radius)
 
     # ----- Solução inicial (gulosa) -----
     sol = initialize_solution(g, n, p, radius)
-    print("Solução inicial construída")
+    # print("Solução inicial construída")
 
     init_tour, init_dist = tsp_nearest_insertion_optimized(g, sol)
     init_cov = calculate_coverage(g, sol, radius)
 
-    print(f"Solução inicial  dist={init_dist:.1f} "
-          f"cov={init_cov}  estações={sol}")
+    # print(f"Solução inicial  dist={init_dist:.1f} "
+    #       f"cov={init_cov}  estações={sol}")
 
     # ----- Inicialização do VNS -----
     best_sol = sol[:]
@@ -738,7 +739,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
     # ----- Loop principal do VNS -----
     for it in range(1, max_iter + 1):
-        print(f"\nIteração {it}/{max_iter}")
+        # print(f"\nIteração {it}/{max_iter}")
         k = k_min
 
         while k <= k_max:
@@ -762,19 +763,21 @@ def run_instance(instance_file, p, radius, max_iter, plot=True):
 
                 time_best_found = time.time() - start
                 iter_best_found = it
-                print("\n  >>> NOVO ÓTIMO GLOBAL ENCONTRADO <<<")
-                print(f"      Iteração VNS: {it}")
-                print(f"      Vizinhança responsável: {which_neigh}")
-                print(f"      Cobertura: {best_cov}")
-                print(f"      Distância: {best_dist:.2f}")
-                print(f"      Estações: {best_sol}")
-                print(f"      Tempo decorrido: {time.time() - start:.2f}s")
-                print(f"      k atual: {k}")
-                print()
+                # print("\n  >>> NOVO ÓTIMO GLOBAL ENCONTRADO <<<")
+                # print(f"      Iteração VNS: {it}")
+                # print(f"      Vizinhança responsável: {which_neigh}")
+                # print(f"      Cobertura: {best_cov}")
+                # print(f"      Distância: {best_dist:.2f}")
+                # print(f"      Estações: {best_sol}")
+                # print(f"      Tempo decorrido: {time.time() - start:.2f}s")
+                # print(f"      k atual: {k}")
+                # print()
                 k = k_min
 
             else:
                 k += 1
+        if time.time() - start > 600:
+            break
 
     elapsed = time.time() - start
 
@@ -806,6 +809,7 @@ def main():
         radius=params["coverage_radius"],
         max_iter=params["max_iterations"],
         plot=True,   # deixa True pra manter o gráfico na execução normal
+        auto_parameters=params.get("auto_parameters", False)
     )
 
     # Se quiser já ver o dicionário retornado:

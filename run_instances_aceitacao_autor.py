@@ -1,7 +1,7 @@
 import os
 import pandas as pd
 from multiprocessing import Pool, cpu_count
-from vns_vnd_main import run_instance
+from one_swap_main import run_instance
 
 INST_DIR = "instancias"
 
@@ -10,7 +10,7 @@ INSTANCES = sorted([
     if f.lower().endswith(".tsp")
 ])
 
-OUTPUT_CSV = "vns_results.csv"
+OUTPUT_CSV = "autor_aceitacao_results.csv"
 REPEATS = 1
 
 # escolha um max_iter real
@@ -40,7 +40,7 @@ if __name__ == "__main__":
     n_cpus = cpu_count()
 
     print("\n============================================")
-    print(" Rodando VNS em paralelo (auto_parameters=True)")
+    print(" Rodando Codigo do autor com criterio de aceitacao em paralelo (auto_parameters=True)")
     print(f" CPUs disponíveis: {n_cpus}")
     print("============================================\n")
 
