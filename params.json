@@ -1,8 +1,9 @@
 {
-    "instance_file": "instancias/pcb442.tsp",
+    "instance_file": "instancias/att532.tsp",
     "plot_graph": false,
-    "p": 20,
+    "p": 5,
     "coverage_radius": 450,
-    "max_iterations": 100,
-    "alpha": 0.001
+    "max_iterations": 10,
+    "alpha": 0.001,
+    "auto_parameters": false
 }

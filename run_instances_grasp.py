@@ -13,7 +13,7 @@ INSTANCES = sorted([
     if f.lower().endswith(".tsp")
 ])
 
-OUTPUT_CSV = "grasp_results.csv"
+OUTPUT_CSV = "grasp_results_sem_limite_p.csv"
 
 # Quantas vezes rodar cada instância (recomendado >1 por causa do random do GRASP)
 REPEATS = 1

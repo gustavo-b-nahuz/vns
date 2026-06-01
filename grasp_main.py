@@ -115,38 +115,104 @@ def tsp_exact(graph, nodes):
 
 
 def euclidean_distance(x1, y1, x2, y2):
-    return math.hypot(x1 - x2, y1 - y2)
+    xd = x1 - x2
+    yd = y1 - y2
+
+    return nint(math.sqrt(xd * xd + yd * yd))
+
+
+def nint(x):
+    return int(x + 0.5)
+
+
+def att_distance(x1, y1, x2, y2):
+    xd = x1 - x2
+    yd = y1 - y2
+
+    rij = math.sqrt((xd * xd + yd * yd) / 10.0)
+
+    tij = nint(rij)
+
+    if tij < rij:
+        dij = tij + 1
+    else:
+        dij = tij
+
+    return dij
 
 
 def read_tsplib_instance(filename):
     """
-    Lê arquivo TSPLIB (.tsp) e devolve (num_vertices, edges).
-    Assume EDGE_WEIGHT_TYPE = EUC_2D.
+    Lê arquivo TSPLIB (.tsp).
+
+    Suporta:
+    - EUC_2D
+    - ATT
     """
+
     with open(filename, "r") as f:
         lines = [ln.strip() for ln in f if ln.strip() and ln.strip() != "EOF"]
 
+    # -----------------------------
+    # Detectar EDGE_WEIGHT_TYPE
+    # -----------------------------
+    edge_weight_type = None
+
+    for ln in lines:
+        if ln.startswith("EDGE_WEIGHT_TYPE"):
+            edge_weight_type = ln.split(":")[1].strip()
+            break
+
+    if edge_weight_type is None:
+        raise ValueError("EDGE_WEIGHT_TYPE não encontrado")
+
+    # -----------------------------
+    # Encontrar NODE_COORD_SECTION
+    # -----------------------------
     try:
         idx = lines.index("NODE_COORD_SECTION") + 1
     except ValueError:
         raise ValueError("Arquivo TSPLIB sem NODE_COORD_SECTION")
 
+    # -----------------------------
+    # Ler coordenadas
+    # -----------------------------
     coords = []
+
     for ln in lines[idx:]:
         parts = ln.split()
+
         if len(parts) >= 3:
             _, x, y = parts[:3]
             coords.append((float(x), float(y)))
 
+    # -----------------------------
+    # Construir arestas
+    # -----------------------------
     n = len(coords)
     edges = []
+
     for i in range(n):
         xi, yi = coords[i]
+
         for j in range(i + 1, n):
             xj, yj = coords[j]
-            d = euclidean_distance(xi, yi, xj, yj)
+
+            # -------- escolher distância --------
+            if edge_weight_type == "EUC_2D":
+                d = euclidean_distance(xi, yi, xj, yj)
+
+            elif edge_weight_type == "ATT":
+                d = att_distance(xi, yi, xj, yj)
+
+            else:
+                raise ValueError(
+                    f"EDGE_WEIGHT_TYPE não suportado: {edge_weight_type}"
+                )
+
             edges.append((i, j, d))
             edges.append((j, i, d))
+
     return n, edges, coords
 
 
@@ -288,19 +354,12 @@ def initialize_solution(graph, n, p, radius):
     return solution
 
 
-def initialize_solution_grasp(graph, n, p, radius, cover_sets, rcl_size=10, rng=None):
-    """
-    GRASP constructive:
-    - Em cada iteração, calcula ganho marginal (novos cobertos)
-    - Monta RCL com os rcl_size melhores
-    - Escolhe 1 aleatório da RCL
-    """
+def initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=None):
     if rng is None:
         rng = random
 
     covered = set()
     solution = []
-    rcl_size = math.floor(n * 0.2)
 
     for _ in range(p):
         candidates = []
@@ -310,30 +369,32 @@ def initialize_solution_grasp(graph, n, p, radius, cover_sets, rcl_size=10, rng=
             gain = len(cover_sets[v] - covered)
             candidates.append((gain, v))
 
-        # ordena por ganho desc
-        candidates.sort(reverse=True)
-
-        # se tudo zero (ou lista vazia), escolhe qualquer fora
         if not candidates:
             break
 
-        best_gain = candidates[0][0]
-        if best_gain <= 0:
-            # sem ganho: ainda assim escolhe para manter tamanho p
+        gains = [g for g, _ in candidates]
+        g_max = max(gains)
+        g_min = min(gains)
+
+        if g_max <= 0:
             remaining = [v for v in range(n) if v not in solution]
             chosen = rng.choice(remaining)
         else:
-            # RCL = top rcl_size (ou menos)
-            rcl = [v for (g, v) in candidates[:min(rcl_size, len(candidates))]]
+            threshold = g_max - alpha * (g_max - g_min)
+            rcl = [v for (g, v) in candidates if g >= threshold]
+
+            if not rcl:
+                rcl = [v for (g, v) in candidates if g == g_max]
+
             chosen = rng.choice(rcl)
 
         solution.append(chosen)
-        covered |= cover_sets[chosen]   # inclui ele e seus cobertos (já vem no cover_sets)
-
+        covered |= cover_sets[chosen]
+    # print(f"Inicialização GRASP com alpha={alpha:.1f} -> cobertura: {len(covered)}")
     return solution
 
 
-def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, rcl_size=10, seed=None):
+def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, seed=None):
     rng = random.Random(seed)
 
     best_sol = None
@@ -344,14 +405,42 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, r
     time_best_found = 0
     iter_best_found = 0
 
+    # conjunto de alphas candidatos
+    alphas = [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0]
+
+    # probabilidades iniciais uniformes
+    probs = [1.0 / len(alphas)] * len(alphas)
+
+    # estatísticas por alpha
+    alpha_counts = [0] * len(alphas)
+    alpha_scores = [0.0] * len(alphas)
+
+    # frequência de atualização
+    block_size = 50
+
     for it in range(1, grasp_iters + 1):
-        # 1) construtivo randomizado
-        sol0 = initialize_solution_grasp(graph, n, p, radius, cover_sets, rcl_size=rcl_size, rng=rng)
+        # escolhe alpha segundo probs
+        alpha_idx = rng.choices(range(len(alphas)), weights=probs, k=1)[0]
+        alpha = alphas[alpha_idx]
+        # print(it,alpha)
 
-        # 2) intensificação
-        cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(graph, sol0, radius, cover_sets, spatial_neighbors)
+        # construtivo randomizado com alpha
+        sol0 = initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=rng)
 
-        # 3) aceita se melhor lexicograficamente
+        # intensificação
+        cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(
+            graph, sol0, radius, cover_sets, spatial_neighbors
+        )
+
+        # guarda estatística do alpha usado
+        alpha_counts[alpha_idx] += 1
+
+        # score lexicográfico escalar auxiliar só para reação
+        # cobertura domina fortemente a distância
+        score = cand_cov * 1_000_000 - cand_dist
+        alpha_scores[alpha_idx] += score
+
+        # aceita melhor solução global
         if (cand_cov > best_cov) or (cand_cov == best_cov and cand_dist < best_dist):
             best_sol = cand_sol[:]
             best_tour = cand_tour[:]
@@ -360,17 +449,25 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, r
             time_best_found = time.time() - time_start
             iter_best_found = it
 
-            # print("\n  >>> NOVO ÓTIMO GRASP ENCONTRADO <<<")
-            # print(f"      Iteração GRASP: {it}/{grasp_iters}")
-            # print(f"      Vizinhança responsável (último ganho no VND): {which_neigh}")
-            # print(f"      Cobertura: {best_cov}")
-            # print(f"      Distância: {best_dist:.2f}")
-            # print(f"      Estações: {best_sol}")
-            # print(f"      Tempo decorrido: {time.time() - time_start:.2f}s")
-            # print()
+        # atualiza probabilidades a cada bloco
+        if it % block_size == 0:
+            qualities = []
+            for i in range(len(alphas)):
+                if alpha_counts[i] == 0:
+                    qualities.append(1.0)
+                else:
+                    qualities.append(alpha_scores[i] / alpha_counts[i])
+
+            min_q = min(qualities)
+            shifted = [(q - min_q) + 1e-9 for q in qualities]
+            total = sum(shifted)
+            probs = [q / total for q in shifted]
+
         if time.time() - time_start > 600:
             break
-
+    # print("Alphas finais e probabilidades:")
+    # for a, p in zip(alphas, probs):
+    #     print(f"alpha={a:.1f} -> {p:.3f}")
     return best_sol, best_tour, best_dist, best_cov, (time.time() - time_start), time_best_found, iter_best_found
 
 
@@ -795,7 +892,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
     if auto_parameters:
         radius = radius_fraction * diameter
     
-        p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
+        p = min(200, math.ceil(0.10 * n))  # 10% dos nós como estações
     
     cover_sets = build_cover_sets(g, radius)
     
@@ -818,8 +915,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
 
     best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found = grasp(
         g, n, p, radius, cover_sets, spatial_neighbors,
-        grasp_iters=1000,
-        rcl_size=10,
+        grasp_iters=400,
+        # rcl_size=10,
         seed=123,
     )
 

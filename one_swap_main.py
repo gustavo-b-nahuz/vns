@@ -114,38 +114,104 @@ def tsp_exact(graph, nodes):
 
 
 def euclidean_distance(x1, y1, x2, y2):
-    return math.hypot(x1 - x2, y1 - y2)
+    xd = x1 - x2
+    yd = y1 - y2
+
+    return nint(math.sqrt(xd * xd + yd * yd))
+
+
+def nint(x):
+    return int(x + 0.5)
+
+
+def att_distance(x1, y1, x2, y2):
+    xd = x1 - x2
+    yd = y1 - y2
+
+    rij = math.sqrt((xd * xd + yd * yd) / 10.0)
+
+    tij = nint(rij)
+
+    if tij < rij:
+        dij = tij + 1
+    else:
+        dij = tij
+
+    return dij
 
 
 def read_tsplib_instance(filename):
     """
-    Lê arquivo TSPLIB (.tsp) e devolve (num_vertices, edges).
-    Assume EDGE_WEIGHT_TYPE = EUC_2D.
+    Lê arquivo TSPLIB (.tsp).
+
+    Suporta:
+    - EUC_2D
+    - ATT
     """
+
     with open(filename, "r") as f:
         lines = [ln.strip() for ln in f if ln.strip() and ln.strip() != "EOF"]
 
+    # -----------------------------
+    # Detectar EDGE_WEIGHT_TYPE
+    # -----------------------------
+    edge_weight_type = None
+
+    for ln in lines:
+        if ln.startswith("EDGE_WEIGHT_TYPE"):
+            edge_weight_type = ln.split(":")[1].strip()
+            break
+
+    if edge_weight_type is None:
+        raise ValueError("EDGE_WEIGHT_TYPE não encontrado")
+
+    # -----------------------------
+    # Encontrar NODE_COORD_SECTION
+    # -----------------------------
     try:
         idx = lines.index("NODE_COORD_SECTION") + 1
     except ValueError:
         raise ValueError("Arquivo TSPLIB sem NODE_COORD_SECTION")
 
+    # -----------------------------
+    # Ler coordenadas
+    # -----------------------------
     coords = []
+
     for ln in lines[idx:]:
         parts = ln.split()
+
         if len(parts) >= 3:
             _, x, y = parts[:3]
             coords.append((float(x), float(y)))
 
+    # -----------------------------
+    # Construir arestas
+    # -----------------------------
     n = len(coords)
     edges = []
+
     for i in range(n):
         xi, yi = coords[i]
+
         for j in range(i + 1, n):
             xj, yj = coords[j]
-            d = euclidean_distance(xi, yi, xj, yj)
+
+            # -------- escolher distância --------
+            if edge_weight_type == "EUC_2D":
+                d = euclidean_distance(xi, yi, xj, yj)
+
+            elif edge_weight_type == "ATT":
+                d = att_distance(xi, yi, xj, yj)
+
+            else:
+                raise ValueError(
+                    f"EDGE_WEIGHT_TYPE não suportado: {edge_weight_type}"
+                )
+
             edges.append((i, j, d))
             edges.append((j, i, d))
+
     return n, edges, coords
 
 
