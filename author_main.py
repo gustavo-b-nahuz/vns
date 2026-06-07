@@ -212,7 +212,7 @@ def read_tsplib_instance(filename):
             edges.append((i, j, d))
             edges.append((j, i, d))
 
-    return n, edges, coords
+    return n, edges, coords, edge_weight_type
 
 
 # ---------- TSP heurística (inserção mais próxima) ---------------------
@@ -507,9 +507,10 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
 
 def run_instance(instance_file, p, radius, max_iter, alpha, plot=True):
     # Carrega instância
-    n, edges, coords = read_tsplib_instance(instance_file)
+    n, edges, coords, edge_weight_type = read_tsplib_instance(instance_file)
 
     g = nx.Graph()
+    g.graph["edge_weight_type"] = edge_weight_type
     for i, (x, y) in enumerate(coords):
         g.add_node(i, pos=(x, y))
 

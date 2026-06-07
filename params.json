@@ -2,7 +2,7 @@
     "instance_file": "instancias/att532.tsp",
     "plot_graph": false,
     "p": 5,
-    "coverage_radius": 450,
+    "coverage_radius": 600,
     "max_iterations": 10,
     "alpha": 0.001,
     "auto_parameters": false

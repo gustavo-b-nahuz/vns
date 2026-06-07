@@ -213,7 +213,7 @@ def read_tsplib_instance(filename):
             edges.append((i, j, d))
             edges.append((j, i, d))
 
-    return n, edges, coords
+    return n, edges, coords, edge_weight_type
 
 
 # ---------- TSP heurística (inserção mais próxima) ---------------------
@@ -765,6 +765,14 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
 
     pos = {node: graph.nodes[node]["pos"] for node in graph.nodes}
 
+    edge_weight_type = graph.graph.get("edge_weight_type", "EUC_2D")
+
+    if edge_weight_type == "ATT":
+        visual_radius = radius * math.sqrt(10)
+    else:
+        visual_radius = radius
+
+
     # calcular nós cobertos
     covered = set(best_sol)
     for v in best_sol:
@@ -783,7 +791,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
         x, y = pos[v]
         circle = Circle(
             (x, y),
-            radius,
+            visual_radius,
             edgecolor='red',
             facecolor='red',
             alpha=0.08,
@@ -878,9 +886,10 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
 def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
 
     # ----- Carrega instância -----
-    n, edges, coords = read_tsplib_instance(instance_file)
+    n, edges, coords, edge_weight_type = read_tsplib_instance(instance_file)
 
     g = nx.Graph()
+    g.graph["edge_weight_type"] = edge_weight_type
     for i, (x, y) in enumerate(coords):
         g.add_node(i, pos=(x, y))
 
@@ -901,15 +910,11 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
 
     spatial_neighbors = []
     for v in range(n):
-        xv, yv = coords[v]
         neigh = []
         for w in range(n):
             if w == v:
                 continue
-            xw, yw = coords[w]
-            dx = xv - xw
-            dy = yv - yw
-            if dx*dx + dy*dy <= limit2:
+            if g[v][w]["weight"] <= limit:
                 neigh.append(w)
         spatial_neighbors.append(neigh)
 
