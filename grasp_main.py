@@ -394,7 +394,7 @@ def initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=None):
     return solution
 
 
-def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, seed=None):
+def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=None):
     rng = random.Random(seed)
 
     best_sol = None
@@ -418,7 +418,7 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, grasp_iters=150, s
     # frequência de atualização
     block_size = 50
 
-    for it in range(1, grasp_iters + 1):
+    for it in range(1, max_iter + 1):
         # escolhe alpha segundo probs
         alpha_idx = rng.choices(range(len(alphas)), weights=probs, k=1)[0]
         alpha = alphas[alpha_idx]
@@ -919,9 +919,13 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         spatial_neighbors.append(neigh)
 
     best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found = grasp(
-        g, n, p, radius, cover_sets, spatial_neighbors,
-        grasp_iters=400,
-        # rcl_size=10,
+        g,
+        n,
+        p,
+        radius,
+        cover_sets,
+        spatial_neighbors,
+        max_iter=max_iter,
         seed=123,
     )
 
