@@ -343,7 +343,7 @@ def initialize_solution(graph, n, p, radius):
                 for i in range(len(tour)-1)
             ]
 
-        draw_iteration(graph, solution, covered, tour_edges, it+1)
+        # draw_iteration(graph, solution, covered, tour_edges, it+1)
 
         # print(f"Tempo iteração: {time.time() - t0:.3f}s")
 
@@ -394,16 +394,23 @@ def initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=None):
     return solution
 
 
-def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=None):
+def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=None, return_history=False):
     rng = random.Random(seed)
+    
+    if seed is not None:
+        random.seed(seed)
 
     best_sol = None
     best_tour = None
     best_dist = float("inf")
     best_cov = -1
+    
     time_start = time.time()
     time_best_found = 0
     iter_best_found = 0
+    last_iter = 0
+    
+    history = []
 
     # conjunto de alphas candidatos
     alphas = [0.0, 0.1, 0.2, 0.3, 0.5, 0.7, 1.0]
@@ -417,12 +424,18 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=Non
 
     # frequência de atualização
     block_size = 50
+    time_limit = 600
 
     for it in range(1, max_iter + 1):
+        last_iter = it
+        
+        if time.time() - time_start > time_limit:
+            break
+
         # escolhe alpha segundo probs
         alpha_idx = rng.choices(range(len(alphas)), weights=probs, k=1)[0]
         alpha = alphas[alpha_idx]
-        # print(it,alpha)
+        print(it)
 
         # construtivo randomizado com alpha
         sol0 = initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=rng)
@@ -446,6 +459,7 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=Non
             best_tour = cand_tour[:]
             best_dist = cand_dist
             best_cov = cand_cov
+            
             time_best_found = time.time() - time_start
             iter_best_found = it
 
@@ -463,12 +477,28 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=Non
             total = sum(shifted)
             probs = [q / total for q in shifted]
 
-        if time.time() - time_start > 600:
-            break
+        if return_history:
+            history.append({
+                "iteracao": it,
+                "tempo_acumulado": time.time() - time_start,
+                "melhor_cobertura": best_cov,
+                "melhor_distancia": best_dist
+            })
+    elapsed = time.time() - time_start
     # print("Alphas finais e probabilidades:")
     # for a, p in zip(alphas, probs):
     #     print(f"alpha={a:.1f} -> {p:.3f}")
-    return best_sol, best_tour, best_dist, best_cov, (time.time() - time_start), time_best_found, iter_best_found
+    return (
+        best_sol,
+        best_tour,
+        best_dist,
+        best_cov,
+        elapsed,
+        time_best_found,
+        iter_best_found,
+        last_iter,
+        history
+    )
 
 
 # ---------- shaking da solução ----------------------------------------
@@ -883,7 +913,7 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
+def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False, seed=None, return_history=False):
 
     # ----- Carrega instância -----
     n, edges, coords, edge_weight_type = read_tsplib_instance(instance_file)
@@ -901,12 +931,11 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
     if auto_parameters:
         radius = radius_fraction * diameter
     
-        p = min(200, math.ceil(0.10 * n))  # 10% dos nós como estações
+        p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
     
     cover_sets = build_cover_sets(g, radius)
     
     limit = 1.5 * radius
-    limit2 = limit * limit
 
     spatial_neighbors = []
     for v in range(n):
@@ -918,7 +947,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
                 neigh.append(w)
         spatial_neighbors.append(neigh)
 
-    best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found = grasp(
+    best_sol, best_tour, best_dist, best_cov, elapsed, time_best_found, iter_best_found, last_iter, history = grasp(
         g,
         n,
         p,
@@ -926,16 +955,21 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         cover_sets,
         spatial_neighbors,
         max_iter=max_iter,
-        seed=123,
+        seed=seed,
+        return_history=return_history
     )
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
 
-    return {
+    result = {
         "instance": instance_file,
+        "n_vertices": n,
         "p": p,
         "radius": radius,
+        "seed": seed,
+        "iterations_requested": max_iter,
+        "iterations_executed": last_iter,
         "final_dist": best_dist,
         "final_cov": best_cov,
         "total_time": elapsed,
@@ -943,6 +977,10 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         "iter_best_found": iter_best_found,
     }
 
+    if return_history:
+        result["history"] = history
+
+    return result
 
 
 # ---------- programa principal -----------------------------------------

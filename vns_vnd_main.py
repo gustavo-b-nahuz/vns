@@ -344,7 +344,7 @@ def initialize_solution(graph, n, p, radius):
                 for i in range(len(tour)-1)
             ]
 
-        draw_iteration(graph, solution, covered, tour_edges, it+1)
+        # draw_iteration(graph, solution, covered, tour_edges, it+1)
 
         # print(f"Tempo iteração: {time.time() - t0:.3f}s")
 
@@ -767,7 +767,9 @@ def plot_final_solution(graph, best_sol, best_tour, radius):
     plt.show()
 
 
-def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False):
+def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=False, seed=None, return_history=False):
+    if seed is not None:
+        random.seed(seed)
 
     # ----- Carrega instância -----
     n, edges, coords, edge_weight_type = read_tsplib_instance(instance_file)
@@ -806,19 +808,38 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
     best_cov  = init_cov
 
     k_min = 1
-    k_max = math.floor((2/3)*p)
+    k_max = math.floor((2 / 3) * p)
 
     start = time.time()
     time_best_found = 0.0
     iter_best_found = 0
+    time_limit = 600
+    last_iter = 0
+
+    history = []
+
+    if return_history:
+        history.append({
+            "iteracao": 0,
+            "tempo_acumulado": 0.0,
+            "melhor_cobertura": best_cov,
+            "melhor_distancia": best_dist
+        })
 
     # ----- Loop principal do VNS -----
     for it in range(1, max_iter + 1):
         print(f"\nIteração {it}/{max_iter}")
+        last_iter = it
+        if time.time() - start > time_limit:
+            break
         k = k_min
 
         while k <= k_max:
             # print(f"  Vizinhança k={k}")
+            
+            if time.time() - start > time_limit:
+                break
+
             # ---- Shaking ----
             pert = shake_random(best_sol[:], n, k)
 
@@ -851,18 +872,28 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
 
             else:
                 k += 1
-        if time.time() - start > 600:
-            break
-
+                
+        if return_history:
+            history.append({
+                "iteracao": it,
+                "tempo_acumulado": time.time() - start,
+                "melhor_cobertura": best_cov,
+                "melhor_distancia": best_dist
+            })
+            
     elapsed = time.time() - start
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
 
-    return {
+    result = {
         "instance": instance_file,
+        "n_vertices": n,
         "p": p,
         "radius": radius,
+        "seed": seed,
+        "iterations_requested": max_iter,
+        "iterations_executed": last_iter,
         "final_dist": best_dist,
         "final_cov": best_cov,
         "total_time": elapsed,
@@ -871,6 +902,11 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         "init_dist": init_dist,
         "init_cov": init_cov,
     }
+
+    if return_history:
+        result["history"] = history
+
+    return result
 
 
 
