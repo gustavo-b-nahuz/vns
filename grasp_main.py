@@ -435,7 +435,7 @@ def grasp(graph, n, p, radius, cover_sets, spatial_neighbors, max_iter, seed=Non
         # escolhe alpha segundo probs
         alpha_idx = rng.choices(range(len(alphas)), weights=probs, k=1)[0]
         alpha = alphas[alpha_idx]
-        print(it)
+        # print(it)
 
         # construtivo randomizado com alpha
         sol0 = initialize_solution_grasp(graph, n, p, radius, cover_sets, alpha, rng=rng)
@@ -985,6 +985,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         "total_time": elapsed,
         "time_best_found": time_best_found,
         "iter_best_found": iter_best_found,
+        "best_sol": best_sol,
+        "best_tour": best_tour
     }
 
     if return_history:

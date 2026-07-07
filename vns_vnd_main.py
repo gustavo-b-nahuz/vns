@@ -838,7 +838,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
 
     # ----- Loop principal do VNS -----
     for it in range(1, max_iter + 1):
-        print(f"\nIteração {it}/{max_iter}")
+        # print(f"\nIteração {it}/{max_iter}")
         last_iter = it
         if time.time() - start_time > time_limit:
             break
@@ -911,6 +911,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         "iter_best_found": iter_best_found,
         "init_dist": init_dist,
         "init_cov": init_cov,
+        "best_sol": best_sol,
+        "best_tour": best_tour
     }
 
     if return_history:

@@ -592,7 +592,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
 
     # ---------- LOOP PRINCIPAL DO VNS ----------
     for it in range(1, max_iter + 1):
-        print("\n=== Iteração VNS", it, "===")
+        # print("\n=== Iteração VNS", it, "===")
         last_iter = it
 
         if time.time() - start > time_limit:
@@ -676,6 +676,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         "iter_best_found": iter_best_found,
         "init_dist": init_dist,
         "init_cov": init_cov,
+        "best_sol": best_sol,
+        "best_tour": best_tour,
     }
     
     if return_history:

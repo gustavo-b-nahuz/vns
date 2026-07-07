@@ -18,7 +18,7 @@ OUTPUT_HISTORY = "historico_multiseed.csv"
 
 # Primeiro teste com [0, 1].
 # Depois, quando estiver tudo certo, troque para list(range(10)).
-SEEDS = [0, 1]
+SEEDS = list(range(10))
 
 ALGORITHMS = [
     {
@@ -90,6 +90,8 @@ def run_task(task):
             "tempo_execucao": result.get("total_time"),
             "iter_best_found": result.get("iter_best_found"),
             "time_best_found": result.get("time_best_found"),
+            "best_sol": result.get("best_sol"),
+            "best_tour": result.get("best_tour"),
             "erro": ""
         }
 
@@ -126,6 +128,8 @@ def run_task(task):
             "tempo_execucao": None,
             "iter_best_found": None,
             "time_best_found": None,
+            "best_sol": None,
+            "best_tour": None,
             "erro": str(e)
         }
 
@@ -154,7 +158,7 @@ if __name__ == "__main__":
     print(f" Total de execuções: {len(tasks)}")
     print("============================================\n")
 
-    n_processes = max(1, min(cpu_count() - 1, 6))
+    n_processes = max(1, min(cpu_count() - 1, 16))
     print(f"Processos usados: {n_processes}\n")
 
     final_rows = []
