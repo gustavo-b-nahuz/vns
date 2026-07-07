@@ -367,9 +367,33 @@ def calculate_coverage(graph, solution, radius):
                         if graph[v][w]["weight"] <= radius})
     return len(covered)
 
+def build_cover_sets(graph, radius):
+    n = graph.number_of_nodes()
+    cover_sets = []
+
+    for v in range(n):
+        covered = {v}
+
+        for w in graph.neighbors(v):
+            if graph[v][w]["weight"] <= radius:
+                covered.add(w)
+
+        cover_sets.append(covered)
+
+    return cover_sets
+
+
+def calculate_coverage_from_precomputed(solution, cover_sets):
+    covered = set()
+
+    for v in solution:
+        covered |= cover_sets[v]
+
+    return covered
+
 
 # ---------- busca local -------------------------------------------------
-def local_search(graph, sol, radius, start_time, time_limit=10):
+def local_search(graph, sol, radius, cover_sets, start_time, time_limit=600):
     # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion(graph, best_sol)
@@ -400,8 +424,13 @@ def local_search(graph, sol, radius, start_time, time_limit=10):
                 cand[i] = v_new
 
                 # TSP heurístico (igual artigo)
+                cand_cov_set = calculate_coverage_from_precomputed(cand, cover_sets)
+                cov = len(cand_cov_set)
+
+                if cov < best_cov:
+                    continue
+
                 tour, dist = tsp_nearest_insertion(graph, cand)
-                cov = calculate_coverage(graph, cand, radius)
 
                 # busca o MELHOR vizinho (não o primeiro)
                 if (
@@ -524,6 +553,8 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         radius = radius_fraction * diameter
     
         p = min(20, math.ceil(0.10 * n))  # 10% dos nós como estações
+    
+    cover_sets = build_cover_sets(g, radius)
 
     # ---------- SOLUÇÃO INICIAL (GULOSO) ----------
     sol = initialize_solution(g, n, p, radius)
@@ -580,7 +611,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
                 pert_tour_heur,
                 pert_dist_heur,
                 pert_cov_heur,
-            ) = local_search(g, pert, radius, start, time_limit)
+            ) = local_search(g, pert, radius, cover_sets, start, time_limit)
 
             # 4) AVALIAÇÃO EXATA DA MELHOR SOLUÇÃO APÓS A LOCAL SEARCH (igual artigo)
             pert_final_tour, pert_final_dist = tsp_nearest_insertion(g, pert_sol)

@@ -440,7 +440,7 @@ def calculate_coverage_from_precomputed(solution, cover_sets):
 
 
 # ---------- busca local -------------------------------------------------
-def local_search(graph, sol, radius, cover_sets):
+def local_search(graph, sol, radius, cover_sets, start_time=None, time_limit=600):
     # solução e valor inicial
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
@@ -449,6 +449,8 @@ def local_search(graph, sol, radius, cover_sets):
     improved = True
 
     while improved:
+        if start_time is not None and time.time() - start_time > time_limit:
+            return best_sol, best_tour, best_dist, best_cov
         improved = False
 
         # guarda o melhor vizinho encontrado nesta iteração
@@ -459,6 +461,8 @@ def local_search(graph, sol, radius, cover_sets):
 
         # percorre todos os possíveis 1-swaps
         for i in range(len(best_sol)):
+            if start_time is not None and time.time() - start_time > time_limit:
+                return best_sol, best_tour, best_dist, best_cov
             for v_new in graph.nodes:
                 if v_new in best_sol:
                     continue
@@ -500,7 +504,7 @@ def local_search(graph, sol, radius, cover_sets):
     return best_sol, best_tour, best_dist, best_cov
 
 
-def local_search_2swap(graph, sol, cover_sets):
+def local_search_2swap(graph, sol, cover_sets, start_time=None, time_limit=600):
     best_sol = sol[:]
     best_cov_set = calculate_coverage_from_precomputed(best_sol, cover_sets)
     best_cov = len(best_cov_set)
@@ -512,6 +516,8 @@ def local_search_2swap(graph, sol, cover_sets):
 
     improved = True
     while improved:
+        if start_time is not None and time.time() - start_time > time_limit:
+            return best_sol, best_tour, best_dist, best_cov
         improved = False
 
         best_sol_set = set(best_sol)
@@ -524,6 +530,8 @@ def local_search_2swap(graph, sol, cover_sets):
                     continue
 
                 for _ in range(min(max_tries_per_pair, len(outside))):
+                    if start_time is not None and time.time() - start_time > time_limit:
+                        return best_sol, best_tour, best_dist, best_cov
                     v1, v2 = random.sample(outside, 2)
 
                     cand = best_sol[:]
@@ -603,7 +611,7 @@ def local_search_2opt(graph, sol, radius, tour=None):
     return sol[:], tour, dist, cov
 
 
-def vnd(graph, sol, radius, cover_sets):
+def vnd(graph, sol, radius, cover_sets, start_time=None, time_limit=600):
     best_sol = sol[:]
     best_tour, best_dist = tsp_nearest_insertion_optimized(graph, best_sol)
     best_cov = len(calculate_coverage_from_precomputed(best_sol, cover_sets))
@@ -613,13 +621,15 @@ def vnd(graph, sol, radius, cover_sets):
     last_improvement = None
 
     while k <= k_max:
+        if start_time is not None and time.time() - start_time > time_limit:
+            return best_sol, best_tour, best_dist, best_cov, last_improvement
 
         if k == 1:
-            cand_sol, cand_tour, cand_dist, cand_cov = local_search(graph, best_sol, radius, cover_sets)
+            cand_sol, cand_tour, cand_dist, cand_cov = local_search(graph, best_sol, radius, cover_sets, start_time=start_time, time_limit=time_limit)
             neigh_name = "1-swap"
 
         elif k == 2:
-            cand_sol, cand_tour, cand_dist, cand_cov = local_search_2swap(graph, best_sol, cover_sets)
+            cand_sol, cand_tour, cand_dist, cand_cov = local_search_2swap(graph, best_sol, cover_sets, start_time=start_time, time_limit=time_limit)
             neigh_name = "2-swap"
 
         if (
@@ -810,7 +820,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
     k_min = 1
     k_max = math.floor((2 / 3) * p)
 
-    start = time.time()
+    start_time = time.time()
     time_best_found = 0.0
     iter_best_found = 0
     time_limit = 600
@@ -830,21 +840,21 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
     for it in range(1, max_iter + 1):
         print(f"\nIteração {it}/{max_iter}")
         last_iter = it
-        if time.time() - start > time_limit:
+        if time.time() - start_time > time_limit:
             break
         k = k_min
 
         while k <= k_max:
             # print(f"  Vizinhança k={k}")
             
-            if time.time() - start > time_limit:
+            if time.time() - start_time > time_limit:
                 break
 
             # ---- Shaking ----
             pert = shake_random(best_sol[:], n, k)
 
             # ---- VND interno ----
-            cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(g, pert, radius, cover_sets)
+            cand_sol, cand_tour, cand_dist, cand_cov, which_neigh = vnd(g, pert, radius, cover_sets, start_time=start_time, time_limit=time_limit)
 
             # ---- Critério de aceitação (lexicográfico) ----
             if (
@@ -857,7 +867,7 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
                 best_cov  = cand_cov
 
 
-                time_best_found = time.time() - start
+                time_best_found = time.time() - start_time
                 iter_best_found = it
                 # print("\n  >>> NOVO ÓTIMO GLOBAL ENCONTRADO <<<")
                 # print(f"      Iteração VNS: {it}")
@@ -876,12 +886,12 @@ def run_instance(instance_file, p, radius, max_iter, plot=True, auto_parameters=
         if return_history:
             history.append({
                 "iteracao": it,
-                "tempo_acumulado": time.time() - start,
+                "tempo_acumulado": time.time() - start_time,
                 "melhor_cobertura": best_cov,
                 "melhor_distancia": best_dist
             })
             
-    elapsed = time.time() - start
+    elapsed = time.time() - start_time
 
     if plot:
         plot_final_solution(g, best_sol, best_tour, radius)
